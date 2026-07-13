@@ -293,6 +293,20 @@ export default function FacultiesScreen() {
                 </View>
               </View>
 
+              {!isExpanded && (
+                <View style={styles.deptChipRow}>
+                  <TouchableOpacity onPress={() => toggleExpandFaculty(item._id)} style={styles.deptChip} activeOpacity={0.7}>
+                    <Ionicons name="layers-outline" size={14} color={colors.primary} />
+                    <Text style={styles.deptChipText}>{depts?.length ?? '...'} Department{(depts?.length ?? 0) !== 1 ? 's' : ''}</Text>
+                  </TouchableOpacity>
+                  {canManage && (
+                    <TouchableOpacity onPress={() => openCreateDept(item._id)} style={styles.addDeptChipBtn} activeOpacity={0.7}>
+                      <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+
               {isExpanded && (
                 <View style={styles.deptSection}>
                   <View style={styles.deptHeader}>
@@ -553,6 +567,37 @@ const getStyles = (c: typeof lightColors) => StyleSheet.create({
   },
   actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   actionBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  deptChipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: c.borderLight,
+  },
+  deptChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: borderRadius.full,
+    backgroundColor: c.primaryBg,
+  },
+  deptChipText: {
+    ...typography.caption,
+    color: c.primary,
+    fontWeight: '600',
+  },
+  addDeptChipBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: borderRadius.full,
+    backgroundColor: c.primaryBg,
+  },
   deptSection: {
     marginTop: spacing.md,
     paddingTop: spacing.md,
