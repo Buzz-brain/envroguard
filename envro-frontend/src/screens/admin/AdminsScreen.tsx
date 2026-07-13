@@ -283,7 +283,7 @@ export default function AdminsScreen() {
               style={[styles.tab, activeTab === tab.key && styles.tabActive]}
               onPress={() => { setActiveTab(tab.key); setToggleError(''); setFetchError(''); }}
             >
-              <Text style={[typography.bodySmall, { fontWeight: '600' }, activeTab === tab.key && { color: '#FFF' }]}>
+              <Text style={[typography.bodySmall, { fontWeight: '600', color: activeTab === tab.key ? '#FFF' : colors.textSecondary }]}>
                 {tab.label}
               </Text>
             </TouchableOpacity>

@@ -33,6 +33,9 @@ export default function SettingsScreen() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [changing, setChanging] = useState(false);
   const [pwError, setPwError] = useState<string | null>(null);
 
@@ -224,8 +227,11 @@ export default function SettingsScreen() {
                   placeholderTextColor={colors.textTertiary}
                   value={currentPassword}
                   onChangeText={setCurrentPassword}
-                  secureTextEntry
+                  secureTextEntry={!showCurrentPw}
                 />
+                <TouchableOpacity onPress={() => setShowCurrentPw(!showCurrentPw)} style={{ padding: 4 }}>
+                  <Ionicons name={showCurrentPw ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.textTertiary} />
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -239,8 +245,11 @@ export default function SettingsScreen() {
                   placeholderTextColor={colors.textTertiary}
                   value={newPassword}
                   onChangeText={setNewPassword}
-                  secureTextEntry
+                  secureTextEntry={!showNewPw}
                 />
+                <TouchableOpacity onPress={() => setShowNewPw(!showNewPw)} style={{ padding: 4 }}>
+                  <Ionicons name={showNewPw ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.textTertiary} />
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -254,8 +263,11 @@ export default function SettingsScreen() {
                   placeholderTextColor={colors.textTertiary}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
-                  secureTextEntry
+                  secureTextEntry={!showConfirmPw}
                 />
+                <TouchableOpacity onPress={() => setShowConfirmPw(!showConfirmPw)} style={{ padding: 4 }}>
+                  <Ionicons name={showConfirmPw ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.textTertiary} />
+                </TouchableOpacity>
               </View>
             </View>
 

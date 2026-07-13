@@ -261,7 +261,7 @@ export default function FacultiesScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <View style={styles.facultyHeader}>
-                      <Text style={[typography.body, { fontWeight: '600' }]}>{item.name}</Text>
+                      <Text style={[typography.body, { fontWeight: '600', color: colors.text }]}>{item.name}</Text>
                       <View style={[styles.activeBadge, { backgroundColor: item.isActive ? colors.successLight : colors.dangerLight }]}>
                         <Text style={[typography.caption, { color: item.isActive ? colors.success : colors.danger, fontWeight: '600' }]}>
                           {item.isActive ? 'Active' : 'Inactive'}
