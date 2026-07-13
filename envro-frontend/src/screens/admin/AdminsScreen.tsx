@@ -334,7 +334,7 @@ export default function AdminsScreen() {
                   <Text style={styles.avatarText}>{item.fullName?.charAt(0) || 'A'}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[typography.body, { fontWeight: '600' }]}>{item.fullName}</Text>
+                  <Text style={[typography.body, { fontWeight: '600', color: colors.text }]}>{item.fullName}</Text>
                   <Text style={[typography.caption, { color: colors.textSecondary }]}>{item.email}</Text>
                   {item.department?.name && (
                     <Text style={[typography.caption, { color: colors.textTertiary, marginTop: 2 }]}>
@@ -403,7 +403,7 @@ export default function AdminsScreen() {
                           style={[styles.facultyOption, selectedFaculty === f._id && styles.facultyOptionSelected]}
                           onPress={() => { setSelectedFaculty(f._id); setSelectedDepartment(''); setCreateError(''); }}
                         >
-                          <Text style={[typography.caption, { fontWeight: '600' }, selectedFaculty === f._id && { color: '#FFF' }]}>
+                          <Text style={[typography.caption, { fontWeight: '600', color: selectedFaculty === f._id ? '#FFF' : colors.text }]}>
                             {f.name}
                           </Text>
                         </TouchableOpacity>
@@ -440,7 +440,7 @@ export default function AdminsScreen() {
                           style={[styles.facultyOption, selectedDepartment === dept._id && styles.facultyOptionSelected]}
                           onPress={() => { setSelectedDepartment(dept._id); setCreateError(''); }}
                         >
-                          <Text style={[typography.caption, { fontWeight: '600' }, selectedDepartment === dept._id && { color: '#FFF' }]}>
+                          <Text style={[typography.caption, { fontWeight: '600', color: selectedDepartment === dept._id ? '#FFF' : colors.text }]}>
                             {dept.code}
                           </Text>
                         </TouchableOpacity>

@@ -290,7 +290,7 @@ export default function StudentsScreen() {
                   <Text style={styles.avatarText}>{item.fullName.charAt(0)}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[typography.body, { fontWeight: '600' }]}>{item.fullName}</Text>
+                  <Text style={[typography.body, { fontWeight: '600', color: colors.text }]}>{item.fullName}</Text>
                   <Text style={[typography.caption, { color: colors.textSecondary }]}>
                     {item.registrationNumber} • {item.department}
                   </Text>
