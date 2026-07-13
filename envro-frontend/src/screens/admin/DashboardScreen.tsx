@@ -266,7 +266,10 @@ export default function DashboardScreen({ navigation }: any) {
       {/* ─── Meta Chips ─── */}
       {(() => {
         const isFacultyScoped = user?.role === 'facultyAdmin' || user?.role === 'departmentAdmin';
-        const pluralize = (count: number, word: string) => `${formatCompact(count)} ${count < 2 ? word : word + 's'}`;
+        const pluralize = (count: number, word: string) => {
+          const plural = /[^aeiou]y$/i.test(word) ? word.slice(0, -1) + 'ies' : word + 's';
+          return `${formatCompact(count)} ${count < 2 ? word : plural}`;
+        };
         const showStudents = stats.totalStudents !== undefined;
         const showOrg = isFacultyScoped
           ? stats.totalDepartments !== undefined
