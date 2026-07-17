@@ -13,7 +13,7 @@ export const studentsApi = {
 
   importStudents: (formData: FormData) =>
     api.post('/students/import', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      headers: { 'Content-Type': null },
     }),
 
   batchCreate: (students: Array<{

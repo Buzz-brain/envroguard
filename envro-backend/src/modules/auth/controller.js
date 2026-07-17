@@ -180,6 +180,7 @@ export const refreshToken = asyncHandler(async (req, res) => {
 export const changePassword = asyncHandler(async (req, res) => {
   const result = await authService.changePasswordService(
     req.user.id,
+    req.user.role,
     req.body.currentPassword,
     req.body.newPassword
   );

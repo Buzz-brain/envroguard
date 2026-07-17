@@ -13,6 +13,8 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { SkeletonList } from '../../components/ui/SkeletonList';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { typography, spacing, borderRadius, REPORT_STATUS, categoryColors as cc } from '../../constants';
+import { getFriendlyErrorMessage } from '../../services/apiErrors';
+import { useAutoRetry } from '../../hooks/useAutoRetry';
 import { reportsApi } from '../../api/reports';
 import { useColors } from '../../contexts/ThemeContext';
 import { lightColors } from '../../constants/theme';
@@ -49,9 +51,11 @@ export default function MyReportsScreen({ navigation }: any) {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const fetchReports = useCallback(async (pageNum = 1, append = false) => {
     try {
+      setFetchError(null);
       const params: any = { page: pageNum, limit: PAGE_SIZE };
       if (activeFilter) params.status = activeFilter;
       const { data } = await reportsApi.getMyReports(params);
@@ -60,7 +64,7 @@ export default function MyReportsScreen({ navigation }: any) {
         setHasMore(data.data.length === PAGE_SIZE);
         setPage(pageNum);
       }
-    } catch {}
+    } catch (err: any) { setFetchError(getFriendlyErrorMessage(err, 'reports')); }
     finally { setLoading(false); setRefreshing(false); setLoadingMore(false); }
   }, [activeFilter]);
 
@@ -70,6 +74,8 @@ export default function MyReportsScreen({ navigation }: any) {
     setHasMore(true);
     fetchReports(1);
   }, [fetchReports]));
+
+  useAutoRetry(() => { setPage(1); setHasMore(true); fetchReports(1); }, !loading);
 
   const loadMore = () => {
     if (!hasMore || loadingMore) return;

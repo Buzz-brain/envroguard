@@ -51,6 +51,9 @@ router.patch(
   reportController.assignReport
 );
 
+// Timeline
+router.get('/:id/timeline', authorize(ROLES.ENVIRONMENTAL_ADMIN, ROLES.FACULTY_ADMIN, ROLES.DEPARTMENT_ADMIN, ROLES.STUDENT), reportController.getReportTimeline);
+
 // Delete report — environmental admin only
 router.delete(
   '/:id',

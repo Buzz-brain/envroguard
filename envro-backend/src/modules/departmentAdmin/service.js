@@ -4,6 +4,9 @@ import { Department } from '../department/model.js';
 import { generateTokens } from '../../middleware/auth.js';
 import { ApiError } from '../../utils/apiError.js';
 import { sendInviteEmail } from '../../services/email.service.js';
+import { createNotificationService } from '../notification/service.js';
+import { createAuditLog } from '../../services/audit.service.js';
+import { NOTIFICATION_TYPES } from '../../constants/hazard.js';
 
 export const createDepartmentAdminService = async (data, createdBy) => {
   const faculty = await Faculty.findById(data.faculty);
@@ -31,8 +34,16 @@ export const createDepartmentAdminService = async (data, createdBy) => {
     createdBy,
   });
 
-  // Send invite email (non-blocking)
   sendInviteEmail(admin.email, admin.fullName);
+
+  createNotificationService({
+    recipientId: admin._id,
+    recipientModel: 'DepartmentAdmin',
+    type: NOTIFICATION_TYPES.ADMIN_CREATED,
+    title: 'Account Created',
+    message: `Your Department Admin account for ${department.name} (${faculty.name}) has been created. Check your email to set your password.`,
+    actorId: createdBy,
+  });
 
   return admin;
 };
@@ -77,7 +88,7 @@ export const getDepartmentAdminByIdService = async (adminId) => {
   return admin;
 };
 
-export const updateDepartmentAdminService = async (adminId, data) => {
+export const updateDepartmentAdminService = async (adminId, data, actorId) => {
   if (data.email) data.email = data.email.toLowerCase();
 
   const admin = await DepartmentAdmin.findByIdAndUpdate(adminId, data, {
@@ -89,10 +100,19 @@ export const updateDepartmentAdminService = async (adminId, data) => {
     throw new ApiError(404, 'Department admin not found');
   }
 
+  createNotificationService({
+    recipientId: admin._id,
+    recipientModel: 'DepartmentAdmin',
+    type: NOTIFICATION_TYPES.ADMIN_UPDATED,
+    title: 'Account Updated',
+    message: 'Your account details have been updated.',
+    actorId,
+  });
+
   return admin;
 };
 
-export const toggleDepartmentAdminStatusService = async (adminId) => {
+export const toggleDepartmentAdminStatusService = async (adminId, actorId) => {
   const admin = await DepartmentAdmin.findById(adminId);
 
   if (!admin) {
@@ -102,6 +122,19 @@ export const toggleDepartmentAdminStatusService = async (adminId) => {
   admin.isActive = !admin.isActive;
   admin.refreshToken = null;
   await admin.save();
+
+  const actionType = admin.isActive ? NOTIFICATION_TYPES.ADMIN_UPDATED : NOTIFICATION_TYPES.ADMIN_DISABLED;
+
+  createNotificationService({
+    recipientId: admin._id,
+    recipientModel: 'DepartmentAdmin',
+    type: actionType,
+    title: admin.isActive ? 'Account Re-activated' : 'Account Disabled',
+    message: admin.isActive
+      ? 'Your account has been re-activated.'
+      : 'Your account has been disabled. Contact the system administrator.',
+    actorId,
+  });
 
   return { isActive: admin.isActive };
 };

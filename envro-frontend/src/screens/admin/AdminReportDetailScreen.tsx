@@ -23,6 +23,9 @@ import { lightColors } from '../../constants/theme';
 import { useColors } from '../../contexts/ThemeContext';
 import { reportsApi } from '../../api/reports';
 import { adminsApi } from '../../api/admins';
+import { ToastService } from '../../services/ToastService';
+import { getFriendlyErrorMessage } from '../../services/apiErrors';
+import { useAutoRetry } from '../../hooks/useAutoRetry';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatFullDateExtended } from '../../utils/helpers';
 import type { HazardReport, ReportStatus } from '../../types';
@@ -81,9 +84,11 @@ export default function AdminReportDetailScreen({ route, navigation }: any) {
       const { data } = await reportsApi.getReportById(reportId);
       if (data.success) setReport(data.data);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to load report');
+      setError(getFriendlyErrorMessage(err, 'reports'));
     } finally { setLoading(false); }
   };
+
+  useAutoRetry(fetchReport, !loading && !!reportId);
 
   const openAssignModal = async () => {
     try {
@@ -91,7 +96,7 @@ export default function AdminReportDetailScreen({ route, navigation }: any) {
       if (data.success) setEnvAdmins(data.data);
       setShowAssignModal(true);
     } catch {
-      Alert.alert('Error', 'Failed to load environmental admins');
+      ToastService.error('Error', 'Failed to load environmental admins');
     }
   };
 
@@ -101,8 +106,9 @@ export default function AdminReportDetailScreen({ route, navigation }: any) {
       const { data } = await reportsApi.assignReport(reportId, adminId);
       if (data.success) setReport(data.data);
       setShowAssignModal(false);
+      ToastService.success('Report Assigned', 'The report has been assigned.');
     } catch (err: any) {
-      Alert.alert('Error', err.response?.data?.message || 'Failed to assign report');
+      ToastService.error('Error', err.response?.data?.message || 'Failed to assign report');
     } finally { setAssigning(false); }
   };
 
@@ -112,9 +118,10 @@ export default function AdminReportDetailScreen({ route, navigation }: any) {
       { text: 'Delete', style: 'destructive', onPress: async () => {
         try {
           await reportsApi.deleteReport(reportId);
+          ToastService.success('Report Deleted', 'The report has been removed.');
           navigation.goBack();
         } catch (err: any) {
-          Alert.alert('Error', err.response?.data?.message || 'Failed to delete report');
+          ToastService.error('Error', err.response?.data?.message || 'Failed to delete report');
         }
       }},
     ]);
@@ -125,8 +132,9 @@ export default function AdminReportDetailScreen({ route, navigation }: any) {
     try {
       const { data } = await reportsApi.updateReportStatus(reportId, status);
       if (data.success) setReport(data.data);
+      ToastService.success('Status Updated', 'Report status changed successfully.');
     } catch (err: any) {
-      Alert.alert('Error', err.response?.data?.message || 'Failed to update status');
+      ToastService.error('Error', err.response?.data?.message || 'Failed to update status');
     } finally { setUpdating(false); }
   };
 

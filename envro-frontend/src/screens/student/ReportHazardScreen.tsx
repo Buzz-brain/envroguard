@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Toast from 'react-native-toast-message';
+import { ToastService } from '../../services/ToastService';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { Button } from '../../components/ui/Button';
@@ -34,6 +34,8 @@ export default function ReportHazardScreen({ navigation, route }: any) {
   const { user } = useAuth();
   const preSelectedCategory = route?.params?.category;
   const isStudent = user?.role === 'student';
+  const scrollRef = useRef<ScrollView>(null);
+  const errorRef = useRef<View>(null);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -97,11 +99,16 @@ export default function ReportHazardScreen({ navigation, route }: any) {
     setImages(images.filter((_, i) => i !== index));
   };
 
+  const setErrorAndScroll = (msg: string) => {
+    setError(msg);
+    scrollRef.current?.scrollTo({ x: 0, y: 0, animated: true });
+  };
+
   const handleSubmit = async () => {
-    if (!title.trim()) { setError('Title is required'); return; }
-    if (!description.trim()) { setError('Description is required'); return; }
-    if (!category) { setError('Select a hazard category'); return; }
-    if (!address.trim()) { setError('Location address is required'); return; }
+    if (!title.trim()) { setErrorAndScroll('Title is required'); return; }
+    if (!description.trim()) { setErrorAndScroll('Description is required'); return; }
+    if (!category) { setErrorAndScroll('Select a hazard category'); return; }
+    if (!address.trim()) { setErrorAndScroll('Location address is required'); return; }
 
     setLoading(true); setError(null);
     try {
@@ -127,15 +134,10 @@ export default function ReportHazardScreen({ navigation, route }: any) {
       });
 
       await reportsApi.createReport(formData);
-      Toast.show({
-        type: 'success',
-        text1: 'Report Submitted',
-        text2: 'Your hazard report has been received.',
-        visibilityTime: 2000,
-      });
+      ToastService.success('Report Submitted', 'Your hazard report has been received.');
       navigation.goBack();
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to submit report');
+      setErrorAndScroll(err.response?.data?.message || 'Failed to submit report');
     } finally { setLoading(false); }
   };
 
@@ -144,7 +146,7 @@ export default function ReportHazardScreen({ navigation, route }: any) {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {/* ── Header ── */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
@@ -157,12 +159,12 @@ export default function ReportHazardScreen({ navigation, route }: any) {
         </View>
 
         {/* ── Alerts ── */}
-        {error && (
-          <View style={[styles.alertBox, { backgroundColor: colors.dangerLight }]}>
+        {error ? (
+          <View ref={errorRef} style={[styles.alertBox, { backgroundColor: colors.dangerLight }]}>
             <Ionicons name="alert-circle" size={18} color={colors.danger} />
             <Text style={[styles.alertText, { color: colors.danger }]}>{error}</Text>
           </View>
-        )}
+        ) : null}
 
         {/* ── Category Grid ── */}
         <Text style={styles.fieldLabel}>Hazard Category</Text>

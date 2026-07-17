@@ -40,7 +40,8 @@ export const getDepartmentAdminById = asyncHandler(async (req, res) => {
 export const updateDepartmentAdmin = asyncHandler(async (req, res) => {
   const admin = await adminService.updateDepartmentAdminService(
     req.params.id,
-    req.body
+    req.body,
+    req.user.id
   );
 
   return apiResponse(res, 200, 'Department admin updated successfully', admin);
@@ -48,7 +49,8 @@ export const updateDepartmentAdmin = asyncHandler(async (req, res) => {
 
 export const toggleDepartmentAdminStatus = asyncHandler(async (req, res) => {
   const result = await adminService.toggleDepartmentAdminStatusService(
-    req.params.id
+    req.params.id,
+    req.user.id
   );
 
   return apiResponse(

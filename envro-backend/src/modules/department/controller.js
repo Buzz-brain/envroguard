@@ -17,12 +17,12 @@ export const getDepartmentById = asyncHandler(async (req, res) => {
 });
 
 export const updateDepartment = asyncHandler(async (req, res) => {
-  const department = await departmentService.updateDepartmentService(req.params.id, req.body);
+  const department = await departmentService.updateDepartmentService(req.params.id, req.body, req.user.id);
   return apiResponse(res, 200, 'Department updated successfully', department);
 });
 
 export const toggleDepartmentStatus = asyncHandler(async (req, res) => {
-  const result = await departmentService.toggleDepartmentStatusService(req.params.id);
+  const result = await departmentService.toggleDepartmentStatusService(req.params.id, req.user.id);
   return apiResponse(
     res,
     200,

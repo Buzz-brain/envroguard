@@ -63,7 +63,7 @@ export default function AdminRegisterScreen({ navigation }: any) {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -110,12 +110,12 @@ export default function AdminRegisterScreen({ navigation }: any) {
         </View>
 
         <View style={styles.form}>
-          {error && (
+          {error ? (
             <View style={styles.errorBox}>
               <Ionicons name="alert-circle" size={18} color={colors.danger} />
               <Text style={styles.errorText}>{error}</Text>
             </View>
-          )}
+          ) : null}
 
           {step === 'email' && (
             <>
@@ -189,7 +189,6 @@ export default function AdminRegisterScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
   },
   content: {
     flexGrow: 1,

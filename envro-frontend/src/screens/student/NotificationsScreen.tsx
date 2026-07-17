@@ -6,6 +6,8 @@ import { Card } from '../../components/ui/Card';
 import { SkeletonList } from '../../components/ui/SkeletonList';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { typography, spacing, borderRadius } from '../../constants';
+import { getFriendlyErrorMessage } from '../../services/apiErrors';
+import { useAutoRetry } from '../../hooks/useAutoRetry';
 import { notificationsApi } from '../../api/notifications';
 import { useColors } from '../../contexts/ThemeContext';
 import { formatDate } from '../../utils/helpers';
@@ -22,16 +24,18 @@ export default function NotificationsScreen({ navigation }: any) {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const fetchNotifications = useCallback(async (pageNum = 1, append = false) => {
     try {
+      setFetchError(null);
       const { data } = await notificationsApi.getAll({ page: pageNum, limit: PAGE_SIZE });
       if (data.success) {
         setNotifications(prev => append ? [...prev, ...data.data] : data.data);
         setHasMore(data.data.length === PAGE_SIZE);
         setPage(pageNum);
       }
-    } catch {}
+    } catch (err: any) { setFetchError(getFriendlyErrorMessage(err, 'notifications')); }
     finally { setLoading(false); setRefreshing(false); setLoadingMore(false); }
   }, []);
 
@@ -41,6 +45,8 @@ export default function NotificationsScreen({ navigation }: any) {
     setHasMore(true);
     fetchNotifications(1);
   }, [fetchNotifications]));
+
+  useAutoRetry(() => { setPage(1); setHasMore(true); fetchNotifications(1); }, !loading);
 
   const loadMore = () => {
     if (!hasMore || loadingMore) return;
@@ -110,7 +116,7 @@ export default function NotificationsScreen({ navigation }: any) {
           <EmptyState icon="notifications-off-outline" title="No Notifications" message="You're all caught up!" hint="Pull down to refresh" />
         }
         renderItem={({ item }) => (
-          <TouchableOpacity onPress={() => markAsRead(item._id)} onLongPress={() => handleDelete(item._id)}>
+          <TouchableOpacity onPress={() => { markAsRead(item._id); if (item.relatedEntityType === 'Report' && item.relatedEntityId) { navigation.navigate('ReportDetail' as never, { reportId: item.relatedEntityId } as never); } }} onLongPress={() => handleDelete(item._id)}>
             <Card
               style={[styles.notifCard, item.isRead ? undefined : styles.unreadCard]}
             >

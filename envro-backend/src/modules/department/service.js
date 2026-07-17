@@ -1,6 +1,7 @@
 import { Department } from './model.js';
 import { Faculty } from '../faculty/model.js';
 import { ApiError } from '../../utils/apiError.js';
+import { createAuditLog } from '../../services/audit.service.js';
 
 export const createDepartmentService = async (data, createdBy) => {
   const faculty = await Faculty.findById(data.faculty);
@@ -20,6 +21,15 @@ export const createDepartmentService = async (data, createdBy) => {
     ...data,
     code: data.code.toUpperCase(),
     createdBy,
+  });
+
+  createAuditLog({
+    actor: createdBy,
+    action: 'create_department',
+    entityType: 'Department',
+    entityId: department._id,
+    description: `Created department: ${department.name} (${faculty.name})`,
+    faculty: data.faculty,
   });
 
   return department;
@@ -55,7 +65,7 @@ export const getDepartmentByIdService = async (departmentId) => {
   return department;
 };
 
-export const updateDepartmentService = async (departmentId, data) => {
+export const updateDepartmentService = async (departmentId, data, actorId) => {
   if (data.code) data.code = data.code.toUpperCase();
 
   if (data.code && data.faculty) {
@@ -78,10 +88,19 @@ export const updateDepartmentService = async (departmentId, data) => {
     throw new ApiError(404, 'Department not found');
   }
 
+  createAuditLog({
+    actor: actorId,
+    action: 'update_department',
+    entityType: 'Department',
+    entityId: department._id,
+    description: `Updated department: ${department.name}`,
+    faculty: department.faculty?._id || data.faculty,
+  });
+
   return department;
 };
 
-export const toggleDepartmentStatusService = async (departmentId) => {
+export const toggleDepartmentStatusService = async (departmentId, actorId) => {
   const department = await Department.findById(departmentId);
 
   if (!department) {
@@ -90,6 +109,15 @@ export const toggleDepartmentStatusService = async (departmentId) => {
 
   department.isActive = !department.isActive;
   await department.save();
+
+  createAuditLog({
+    actor: actorId,
+    action: `toggle_department_${department.isActive ? 'activate' : 'deactivate'}`,
+    entityType: 'Department',
+    entityId: department._id,
+    description: `${department.isActive ? 'Activated' : 'Deactivated'} department: ${department.name}`,
+    faculty: department.faculty,
+  });
 
   return { isActive: department.isActive };
 };
@@ -100,6 +128,14 @@ export const deleteDepartmentService = async (departmentId) => {
   if (!department) {
     throw new ApiError(404, 'Department not found');
   }
+
+  createAuditLog({
+    action: 'delete_department',
+    entityType: 'Department',
+    entityId: department._id,
+    description: `Deleted department: ${department.name}`,
+    faculty: department.faculty,
+  });
 
   return { message: 'Department deleted successfully' };
 };

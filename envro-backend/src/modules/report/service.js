@@ -1,15 +1,16 @@
+import mongoose from 'mongoose';
 import { HazardReport } from './model.js';
 import { StudentAccount } from '../auth/model/StudentAccount.js';
 import { Student } from '../student/model.js';
-import { Faculty } from '../faculty/model.js';
-import { Notification } from '../notification/model.js';
 import {
   uploadMultipleToCloudinary,
   deleteFromCloudinary,
 } from '../../services/cloudinary.service.js';
 import { REPORT_STATUS, NOTIFICATION_TYPES } from '../../constants/hazard.js';
 import { ApiError } from '../../utils/apiError.js';
-import { sendPushNotification } from '../../services/push.service.js';
+import { createNotificationService } from '../notification/service.js';
+import { createAuditLog } from '../../services/audit.service.js';
+import { addReportSubmittedEvent, addStatusChangedEvent, addAssignedEvent } from '../../services/timeline.service.js';
 
 export const createReportService = async (data, files, studentAccountId) => {
   const studentAccount = await StudentAccount.findById(studentAccountId);
@@ -60,6 +61,44 @@ export const createReportService = async (data, files, studentAccountId) => {
   const populatedReport = await HazardReport.findById(report._id)
     .populate('reportedBy', 'registrationNumber')
     .populate('faculty', 'name');
+
+  const facultyAdmins = await mongoose.model('FacultyAdmin').find({ faculty: report.faculty }).select('_id');
+  const envAdmins = await mongoose.model('EnvironmentalAdmin').find({}).select('_id');
+
+  const adminRecipients = [
+    ...facultyAdmins.map((a) => ({
+      recipientId: a._id,
+      recipientModel: 'FacultyAdmin',
+    })),
+    ...envAdmins.map((a) => ({
+      recipientId: a._id,
+      recipientModel: 'EnvironmentalAdmin',
+    })),
+  ];
+
+  for (const r of adminRecipients) {
+    createNotificationService({
+      ...r,
+      type: NOTIFICATION_TYPES.REPORT_SUBMITTED,
+      title: 'New Hazard Report',
+      message: `A new "${report.category}" report was submitted in ${populatedReport.faculty?.name || 'your faculty'}`,
+      relatedEntityType: 'Report',
+      relatedEntityId: report._id,
+      actorId: studentAccountId,
+    });
+  }
+
+  addReportSubmittedEvent(report._id, studentAccountId, student.fullName);
+
+  createAuditLog({
+    actor: studentAccountId,
+    actorModel: 'StudentAccount',
+    action: 'create_report',
+    entityType: 'Report',
+    entityId: report._id,
+    description: `Student submitted a "${report.category}" report in ${populatedReport.faculty?.name || 'N/A'}`,
+    faculty: report.faculty,
+  });
 
   return populatedReport;
 };
@@ -119,20 +158,20 @@ export const updateReportStatusService = async (reportId, status, note, adminId,
 
   await report.save();
 
-  // Create notification for the reporting student
   const statusMessages = {
     [REPORT_STATUS.UNDER_REVIEW]: 'Your report is now under review',
     [REPORT_STATUS.IN_PROGRESS]: 'Work has begun on your report',
     [REPORT_STATUS.RESOLVED]: 'Your report has been resolved',
   };
 
-  await Notification.create({
-    recipient: report.reportedBy,
+  createNotificationService({
+    recipientId: report.reportedBy,
     recipientModel: 'StudentAccount',
-    type: NOTIFICATION_TYPES.STATUS_CHANGED,
+    type: NOTIFICATION_TYPES.REPORT_STATUS_CHANGED,
     title: 'Report Status Updated',
     message: statusMessages[status] || `Report status changed to ${status}`,
-    relatedReport: report._id,
+    relatedEntityType: 'Report',
+    relatedEntityId: report._id,
     metadata: {
       previousStatus: report.statusHistory[report.statusHistory.length - 2]?.status,
       newStatus: status,
@@ -140,14 +179,19 @@ export const updateReportStatusService = async (reportId, status, note, adminId,
     },
   });
 
-  // Send push notification
-  sendPushNotification(
-    report.reportedBy,
-    'StudentAccount',
-    'Report Status Updated',
-    statusMessages[status] || `Report status changed to ${status}`,
-    { reportId: report._id.toString(), type: 'status_changed' }
-  );
+  addStatusChangedEvent(report._id, status, adminId, adminModel, null, note);
+
+  const adminLabel = adminModel === 'EnvironmentalAdmin' ? 'Environmental Admin' : 'Faculty Admin';
+
+  createAuditLog({
+    actor: adminId,
+    actorModel: adminModel,
+    action: 'update_report_status',
+    entityType: 'Report',
+    entityId: report._id,
+    description: `${adminLabel} changed report status to ${status}${note ? `: ${note}` : ''}`,
+    faculty: report.faculty,
+  });
 
   const updatedReport = await HazardReport.findById(reportId)
     .populate('reportedBy', 'registrationNumber')
@@ -157,7 +201,7 @@ export const updateReportStatusService = async (reportId, status, note, adminId,
   return updatedReport;
 };
 
-export const assignReportService = async (reportId, adminId) => {
+export const assignReportService = async (reportId, adminId, actorId) => {
   const report = await HazardReport.findByIdAndUpdate(
     reportId,
     { assignedTo: adminId },
@@ -169,6 +213,19 @@ export const assignReportService = async (reportId, adminId) => {
   if (!report) {
     throw new ApiError(404, 'Report not found');
   }
+
+  addAssignedEvent(report._id, adminId, null, actorId, 'EnvironmentalAdmin');
+
+  createNotificationService({
+    recipientId: adminId,
+    recipientModel: 'FacultyAdmin',
+    type: NOTIFICATION_TYPES.REPORT_ASSIGNED,
+    title: 'Report Assigned',
+    message: `Report "${report.title}" has been assigned to you`,
+    relatedEntityType: 'Report',
+    relatedEntityId: report._id,
+    actorId,
+  });
 
   return report;
 };
@@ -192,19 +249,27 @@ export const getMyReportsService = async (studentAccountId, query) => {
   return { reports, pagination: buildPaginationMeta(total, page, limit) };
 };
 
-export const deleteReportService = async (reportId) => {
+export const deleteReportService = async (reportId, actorId) => {
   const report = await HazardReport.findById(reportId);
 
   if (!report) {
     throw new ApiError(404, 'Report not found');
   }
 
-  // Delete images from Cloudinary
   for (const image of report.images) {
     await deleteFromCloudinary(image.publicId);
   }
 
   await HazardReport.findByIdAndDelete(reportId);
+
+  createAuditLog({
+    actor: actorId,
+    action: 'delete_report',
+    entityType: 'Report',
+    entityId: reportId,
+    description: `Deleted report: ${report.title}`,
+    faculty: report.faculty,
+  });
 
   return { message: 'Report deleted successfully' };
 };

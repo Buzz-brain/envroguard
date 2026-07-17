@@ -21,6 +21,9 @@ import { SkeletonList } from '../../components/ui/SkeletonList';
 import { typography, spacing, borderRadius, REPORT_STATUS, HAZARD_CATEGORIES, statusColors as sc, categoryColors as cc, categoryIcons } from '../../constants';
 import { useColors } from '../../contexts/ThemeContext';
 import { reportsApi } from '../../api/reports';
+import { getFriendlyErrorMessage } from '../../services/apiErrors';
+import { useAutoRetry } from '../../hooks/useAutoRetry';
+import { ToastService } from '../../services/ToastService';
 import { formatDate } from '../../utils/helpers';
 import type { HazardReport } from '../../types';
 
@@ -53,9 +56,11 @@ export default function ReportsScreen({ navigation, route }: any) {
   const [deleteError, setDeleteError] = useState('');
   const [totalReports, setTotalReports] = useState(0);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const fetchReports = useCallback(async (pageNum = 1, append = false) => {
     try {
+      setFetchError(null);
       const params: any = { page: pageNum, limit: PAGE_SIZE };
       if (statusFilter) params.status = statusFilter;
       if (debouncedSearch) params.search = debouncedSearch;
@@ -67,7 +72,7 @@ export default function ReportsScreen({ navigation, route }: any) {
         setPage(pageNum);
         if (!append) setTotalReports(data.meta?.pagination?.total ?? data.data.length);
       }
-    } catch {}
+    } catch (err: any) { setFetchError(getFriendlyErrorMessage(err, 'reports')); }
     finally { setLoading(false); setRefreshing(false); setLoadingMore(false); }
   }, [statusFilter, debouncedSearch, categoryFilter]);
 
@@ -91,6 +96,8 @@ export default function ReportsScreen({ navigation, route }: any) {
     fetchStats();
   }, [fetchReports, fetchStats]));
 
+  useAutoRetry(() => { setPage(1); setHasMore(true); fetchReports(1); }, !loading);
+
   useEffect(() => {
     const incoming = route.params?.status;
     if (incoming !== undefined) setStatusFilter(incoming);
@@ -112,7 +119,9 @@ export default function ReportsScreen({ navigation, route }: any) {
       setReports(prev => prev.filter(r => r._id !== deleteTarget._id));
       setTotalReports(prev => Math.max(0, prev - 1));
       setDeleteTarget(null);
+      ToastService.success('Report Deleted', 'The report has been removed.');
     } catch (err: any) {
+      ToastService.error('Error', err.response?.data?.message || 'Failed to delete report');
       setDeleteError(err.response?.data?.message || 'Failed to delete report');
     }
   };

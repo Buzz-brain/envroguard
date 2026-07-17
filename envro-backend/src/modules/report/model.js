@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { REPORT_STATUS, REPORT_PRIORITY, HAZARD_CATEGORIES } from '../../constants/hazard.js';
+import { REPORT_STATUS, REPORT_PRIORITY, HAZARD_CATEGORIES, TIMELINE_EVENT_TYPES } from '../../constants/hazard.js';
 
 const hazardReportSchema = new mongoose.Schema(
   {
@@ -82,6 +82,27 @@ const hazardReportSchema = new mongoose.Schema(
     resolvedAt: {
       type: Date,
     },
+    timeline: [
+      {
+        eventType: {
+          type: String,
+          required: true,
+          enum: Object.values(TIMELINE_EVENT_TYPES),
+        },
+        description: { type: String, required: true, trim: true },
+        actor: {
+          type: mongoose.Schema.Types.ObjectId,
+          refPath: 'timeline.actorModel',
+        },
+        actorModel: {
+          type: String,
+          enum: ['StudentAccount', 'DepartmentAdmin', 'FacultyAdmin', 'EnvironmentalAdmin'],
+        },
+        actorName: { type: String, default: '' },
+        metadata: { type: mongoose.Schema.Types.Mixed },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   { timestamps: true }
 );

@@ -25,6 +25,7 @@ import AdminFaculties from '../screens/admin/FacultiesScreen';
 import AdminAdmins from '../screens/admin/AdminsScreen';
 import AdminSettings from '../screens/admin/SettingsScreen';
 import AdminNotifications from '../screens/student/NotificationsScreen';
+import AuditLogs from '../screens/admin/AuditLogsScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -64,6 +65,7 @@ function AdminDashboardStack() {
       <Stack.Screen name="DashboardMain" component={AdminDashboard} />
       <Stack.Screen name="ReportDetail" component={AdminReportDetail} />
       <Stack.Screen name="NotificationsList" component={AdminNotifications} />
+      <Stack.Screen name="AuditLogs" component={AuditLogs} />
     </Stack.Navigator>
   );
 }
@@ -184,7 +186,7 @@ export function DepartmentAdminTabs() {
       }}
     >
       <Tab.Screen name="Dashboard" component={AdminDashboardStack}
-        options={{ tabBarIcon: ({ color, size }) => <Ionicons name="grid" size={size} color={color} /> }} />
+        options={{ tabBarIcon: ({ color, size }) => <Ionicons name="grid-outline" size={size} color={color} /> }} />
       <Tab.Screen name="Reports" component={AdminReportsStack}
         options={{ tabBarIcon: ({ color, size }) => reportIcon(size, color) }} />
       <Tab.Screen name="Students" component={StudentsStack}
@@ -208,7 +210,7 @@ export function FacultyAdminTabs() {
       }}
     >
       <Tab.Screen name="Dashboard" component={AdminDashboardStack}
-        options={{ tabBarIcon: ({ color, size }) => <Ionicons name="grid" size={size} color={color} /> }} />
+        options={{ tabBarIcon: ({ color, size }) => <Ionicons name="grid-outline" size={size} color={color} /> }} />
       <Tab.Screen name="Reports" component={AdminReportsStack}
         options={{ tabBarIcon: ({ color, size }) => reportIcon(size, color) }} />
       <Tab.Screen name="Students" component={StudentsStack}
@@ -236,7 +238,7 @@ export function EnvironmentalAdminTabs() {
       }}
     >
       <Tab.Screen name="Dashboard" component={AdminDashboardStack}
-        options={{ tabBarIcon: ({ color, size }) => <Ionicons name="grid" size={size} color={color} /> }} />
+        options={{ tabBarIcon: ({ color, size }) => <Ionicons name="grid-outline" size={size} color={color} /> }} />
       <Tab.Screen name="Reports" component={AdminReportsStack}
         options={{ tabBarIcon: ({ color, size }) => reportIcon(size, color) }} />
       <Tab.Screen name="Faculties" component={FacultiesStack}

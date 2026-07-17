@@ -5,11 +5,14 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
+  Pressable,
   RefreshControl,
   TextInput,
   Alert,
   Modal,
   ScrollView,
+  useWindowDimensions,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
@@ -19,10 +22,14 @@ import { Button } from '../../components/ui/Button';
 import { Loading } from '../../components/ui/Loading';
 import { SkeletonList } from '../../components/ui/SkeletonList';
 import { EmptyState } from '../../components/ui/EmptyState';
-import { typography, spacing, borderRadius } from '../../constants';
+import { typography, spacing, borderRadius, shadows } from '../../constants';
 import { useColors } from '../../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { studentsApi } from '../../api/students';
 import { departmentsApi } from '../../api/departments';
+import { ToastService } from '../../services/ToastService';
+import { getFriendlyErrorMessage } from '../../services/apiErrors';
+import { useAutoRetry } from '../../hooks/useAutoRetry';
 import { impactLight, notificationSuccess, notificationError } from '../../utils/haptics';
 import type { Student, Department as DeptType } from '../../types';
 
@@ -40,6 +47,11 @@ interface BatchRow {
 
 export default function StudentsScreen() {
   const colors = useColors();
+  const { user } = useAuth();
+  const { width: screenWidth } = useWindowDimensions();
+  const isSmallScreen = screenWidth < 400;
+  const isDeptAdmin = user?.role === 'departmentAdmin';
+  const isFacultyAdmin = user?.role === 'facultyAdmin';
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -65,6 +77,13 @@ export default function StudentsScreen() {
   const [batchSubmitting, setBatchSubmitting] = useState(false);
   const batchIdRef = useRef(2);
   const [departments, setDepartments] = useState<DeptType[]>([]);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const facultyDepts = departments.filter(
+    d => isFacultyAdmin && user?.faculty && String(typeof d.faculty === 'string' ? d.faculty : d.faculty._id) === String(user.faculty)
+  );
+  const [importModalVisible, setImportModalVisible] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
+  const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
     departmentsApi.getAll().then((res: any) => {
@@ -80,6 +99,7 @@ export default function StudentsScreen() {
 
   const fetchStudents = useCallback(async (pageNum = 1, append = false) => {
     try {
+      setFetchError(null);
       const params: any = { page: pageNum, limit: PAGE_SIZE };
       if (debouncedSearch) params.search = debouncedSearch;
       const { data } = await studentsApi.getAll(params);
@@ -88,7 +108,7 @@ export default function StudentsScreen() {
         setHasMore(data.data.length === PAGE_SIZE);
         setPage(pageNum);
       }
-    } catch {}
+    } catch (err: any) { setFetchError(getFriendlyErrorMessage(err, 'students')); }
     finally { setLoading(false); setRefreshing(false); setLoadingMore(false); }
   }, [debouncedSearch]);
 
@@ -99,13 +119,20 @@ export default function StudentsScreen() {
     fetchStudents(1);
   }, [fetchStudents]));
 
+  useAutoRetry(() => { setPage(1); setHasMore(true); fetchStudents(1); }, !loading);
+
   const loadMore = () => {
     if (!hasMore || loadingMore) return;
     setLoadingMore(true);
     fetchStudents(page + 1, true);
   };
 
-  const handleImport = async () => {
+  const handleImport = () => {
+    setImportModalVisible(true);
+  };
+
+  const handlePickFile = async () => {
+    setImportModalVisible(false);
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: [
@@ -115,22 +142,54 @@ export default function StudentsScreen() {
         ],
       });
       if (result.canceled || !result.assets || result.assets.length === 0) return;
-      const file = result.assets[0];
+      const picked = result.assets[0];
       const formData = new FormData();
-      formData.append('file', {
-        uri: file.uri,
-        name: file.name,
-        type: file.mimeType || 'text/csv',
-      } as any);
+      if (Platform.OS === 'web') {
+        let webFile = (picked as any).file;
+        if (!webFile) {
+          const response = await fetch(picked.uri);
+          const blob = await response.blob();
+          webFile = new File([blob], picked.name || 'students.csv', { type: picked.mimeType || 'text/csv' });
+        }
+        formData.append('file', webFile);
+      } else {
+        formData.append('file', {
+          uri: picked.uri,
+          name: picked.name,
+          type: picked.mimeType || 'text/csv',
+        } as any);
+      }
+      if (isDeptAdmin && user?.faculty) {
+        const fid = typeof user.faculty === 'string' ? user.faculty : (user.faculty as any)?._id;
+        if (fid) formData.append('facultyId', fid);
+      }
       setImporting(true);
       const { data } = await studentsApi.importStudents(formData);
       if (data.success) {
-        Alert.alert('Success', `${data.data?.count || 'Students'} imported successfully.`);
-        notificationSuccess();
+        const result = data.data as any;
+        const created = result?.created ?? 0;
+        const failed = result?.failed ?? 0;
+        const errors = result?.errors as Array<{ row: number; error: string }> | undefined;
+        if (created > 0) {
+          ToastService.success('Import Complete', `${created} student(s) imported successfully.`);
+          notificationSuccess();
+        } else if (failed > 0) {
+          let msg = `Import completed with ${failed} failure(s).`;
+          if (errors?.length) {
+            msg += '\n' + errors.map(e => `Row ${e.row}: ${e.error}`).join('\n');
+          }
+          ToastService.error('Import Completed with Errors', msg);
+          notificationError();
+        }
         fetchStudents();
       }
     } catch (err: any) {
-      Alert.alert('Error', err.response?.data?.message || 'Failed to import students.');
+      const res = err.response?.data;
+      let msg = res?.message || 'Failed to import students.';
+      if (res?.errors?.length) {
+        msg = res.errors.map((e: any) => e.message).join('\n');
+      }
+      ToastService.error('Import Failed', msg);
       notificationError();
     } finally {
       setImporting(false);
@@ -173,23 +232,33 @@ export default function StudentsScreen() {
       impactLight();
       notificationSuccess();
       setStudents(prev => prev.map(s => s._id === selectedStudent._id ? { ...s, fullName: editName.trim(), level: editLevel.trim(), department: editDepartment.trim() } : s));
+      ToastService.success('Student Updated', 'Student information saved.');
     } catch (err: any) {
+      ToastService.error('Error', err.response?.data?.message || 'Failed to update student');
       setError(err.response?.data?.message || 'Failed to update student');
       notificationError();
     } finally { setSavingEdit(false); }
   };
 
   const handleDelete = (id: string, name: string) => {
-    Alert.alert('Delete Student', `Remove ${name}?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => {
-        try {
-          await studentsApi.delete(id);
-          setStudents(prev => prev.filter(s => s._id !== id));
-          notificationSuccess();
-        } catch {}
-      }},
-    ]);
+    setDeleteError('');
+    setConfirmDelete({ id, name });
+  };
+
+  const executeDelete = async () => {
+    if (!confirmDelete) return;
+    setDeleteError('');
+    const { id } = confirmDelete;
+    try {
+      await studentsApi.delete(id);
+      setStudents(prev => prev.filter(s => s._id !== id));
+      setConfirmDelete(null);
+      notificationSuccess();
+      ToastService.success('Student Deleted', 'Student has been removed.');
+    } catch (err: any) {
+      ToastService.error('Error', err.response?.data?.message || 'Failed to delete student');
+      setDeleteError(err.response?.data?.message || 'Failed to delete student');
+    }
   };
 
   const addBatchRow = () => {
@@ -208,13 +277,14 @@ export default function StudentsScreen() {
   };
 
   const openBatchModal = () => {
-    setBatchRows([{ id: batchIdRef.current++, registrationNumber: '', fullName: '', email: '', department: '', level: '' }]);
+    const defaultDept = isDeptAdmin && user?.department ? user.department : '';
+    setBatchRows([{ id: batchIdRef.current++, registrationNumber: '', fullName: '', email: '', department: defaultDept, level: '' }]);
     setBatchModalVisible(true);
   };
 
   const handleBatchSubmit = async () => {
-    const valid = batchRows.every(r => r.registrationNumber && r.fullName && r.email && r.department && r.level);
-    if (!valid) { Alert.alert('Error', 'All fields are required for every row'); return; }
+    const valid = batchRows.every(r => r.registrationNumber && r.fullName && r.email && r.level && (isDeptAdmin || r.department));
+    if (!valid) { Alert.alert('Error', isDeptAdmin ? 'Reg. Number, Name, Email, and Level are required for every row.' : 'All fields including Department are required for every row.'); return; }
     setBatchSubmitting(true);
     try {
       const { data } = await studentsApi.batchCreate(
@@ -229,12 +299,12 @@ export default function StudentsScreen() {
       if (data.success) {
         setBatchModalVisible(false);
         const r = data.data;
-        Alert.alert('Done', `${r.created} created, ${r.updated} updated, ${r.failed} failed.`);
+        ToastService.success('Batch Complete', `${r.created} created, ${r.updated} updated, ${r.failed} failed.`);
         notificationSuccess();
         fetchStudents();
       }
     } catch (err: any) {
-      Alert.alert('Error', err.userMessage || 'Failed to create students');
+      ToastService.error('Batch Failed', err.userMessage || 'Failed to create students');
     } finally {
       setBatchSubmitting(false);
     }
@@ -243,15 +313,15 @@ export default function StudentsScreen() {
   if (loading) return <SkeletonList variant="student-card" />;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Students</Text>
           <Text style={styles.subtitle}>{students.length} students</Text>
         </View>
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          <Button title="Batch Entry" onPress={openBatchModal} variant="outline" size="sm" />
-          <Button title="Import" onPress={handleImport} variant="outline" size="sm" loading={importing} />
+          {isDeptAdmin && <Button title="Batch Entry" onPress={openBatchModal} variant="outline" size="sm" />}
+          {(isDeptAdmin || isFacultyAdmin) && <Button title="Import" onPress={handleImport} variant="outline" size="sm" loading={importing} />}
         </View>
       </View>
 
@@ -298,14 +368,119 @@ export default function StudentsScreen() {
                     Level {item.level}
                   </Text>
                 </View>
-                <TouchableOpacity onPress={() => handleDelete(item._id, item.fullName)}>
-                  <Ionicons name="trash-outline" size={20} color={colors.danger} />
-                </TouchableOpacity>
+                {isDeptAdmin && (
+                  <TouchableOpacity onPress={() => handleDelete(item._id, item.fullName)}>
+                    <Ionicons name="trash-outline" size={20} color={colors.danger} />
+                  </TouchableOpacity>
+                )}
               </View>
             </Card>
           </TouchableOpacity>
         )}
       />
+
+      {/* Import Instruction Modal */}
+      <Modal visible={importModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Import Students</Text>
+                <Text style={[typography.caption, { color: colors.textTertiary, marginTop: 2 }]}>
+                  Upload a file to add students in bulk
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setImportModalVisible(false)} style={[styles.modalCloseBtn, { backgroundColor: colors.surfaceAlt }]}>
+                <Ionicons name="close" size={20} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={[styles.importInfoCard, { backgroundColor: colors.surface, ...shadows.sm }]}>
+              <Text style={[typography.label, { color: colors.text, fontWeight: '700', marginBottom: spacing.sm }]}>
+                Accepted File Types
+              </Text>
+              <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>
+                {[{ ext: '.csv', icon: 'document-text', desc: 'CSV (Comma-Separated Values)' },
+                  { ext: '.xlsx', icon: 'grid', desc: 'Excel Workbook' },
+                  { ext: '.xls', icon: 'grid', desc: 'Excel 97-2004 Workbook' },
+                ].map(t => (
+                  <View key={t.ext} style={[styles.importTypeBadge, { backgroundColor: colors.primaryBg, borderColor: colors.primary + '30' }]}>
+                    <Ionicons name={t.icon as any} size={16} color={colors.primary} />
+                    <Text style={[typography.caption, { color: colors.primary, fontWeight: '600', marginLeft: 4 }]}>{t.ext}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            <View style={[styles.importInfoCard, { backgroundColor: colors.surface, ...shadows.sm }]}>
+              <Text style={[typography.label, { color: colors.text, fontWeight: '700', marginBottom: spacing.sm }]}>
+                Required Columns
+              </Text>
+              <Text style={[typography.caption, { color: colors.textSecondary, lineHeight: 20, marginBottom: spacing.sm }]}>
+                Your file must include these columns in the first row:
+              </Text>
+              {[
+                { col: 'fullName', desc: 'Student full name', req: true },
+                { col: 'email', desc: 'Valid school email address', req: true },
+                { col: 'registrationNumber', desc: 'Unique registration number', req: true },
+                { col: 'level', desc: 'e.g. 100, 200, 300, 400, 500', req: true },
+                { col: 'department', desc: isDeptAdmin ? 'Auto-set to your department — column optional' : 'Department code or name', req: !isDeptAdmin },
+              ].map(col => (
+                <View key={col.col} style={styles.importColRow}>
+                  <View style={[styles.importColBadge, { backgroundColor: col.req ? colors.primaryBg : colors.surfaceAlt }]}>
+                    <Text style={[typography.caption, { color: col.req ? colors.primary : colors.textSecondary, fontWeight: '700', fontFamily: 'monospace' }]}>
+                      {col.col}
+                    </Text>
+                  </View>
+                  <Text style={[typography.caption, { color: colors.textSecondary, flex: 1 }]}>{col.desc}</Text>
+                  {col.req ? (
+                    <Text style={[typography.caption, { color: colors.danger, fontWeight: '600' }]}>Required</Text>
+                  ) : (
+                    <Text style={[typography.caption, { color: colors.success, fontWeight: '600' }]}>Optional</Text>
+                  )}
+                </View>
+              ))}
+            </View>
+
+            <View style={[styles.importInfoCard, { backgroundColor: colors.surface, ...shadows.sm }]}>
+              <Text style={[typography.label, { color: colors.text, fontWeight: '700', marginBottom: spacing.sm }]}>
+                Sample Row
+              </Text>
+              <View style={[styles.importSampleBox, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <Text style={[typography.caption, { color: colors.textSecondary, fontFamily: 'monospace', fontSize: 12, lineHeight: 20 }]}>
+                  fullName,email,registrationNumber,level{isDeptAdmin ? '' : ',department'}
+                </Text>
+                <Text style={[typography.caption, { color: colors.textSecondary, fontFamily: 'monospace', fontSize: 12, lineHeight: 20 }]}>
+                  John Doe,john.doe@school.edu,20210001,200{isDeptAdmin ? '' : ',CS'}
+                </Text>
+              </View>
+              <Text style={[typography.caption, { color: colors.textTertiary, marginTop: spacing.xs }]}>
+                First row must be headers. Each subsequent row = one student.
+              </Text>
+            </View>
+
+            {isFacultyAdmin && facultyDepts.length > 0 && (
+              <View style={[styles.importInfoCard, { backgroundColor: colors.surface, ...shadows.sm }]}>
+                <Text style={[typography.label, { color: colors.text, fontWeight: '700', marginBottom: spacing.sm }]}>
+                  Available Departments Under Your Faculty
+                </Text>
+                <View style={{ flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' }}>
+                  {facultyDepts.map(d => (
+                    <View key={d._id} style={[styles.importTypeBadge, { backgroundColor: colors.primaryBg, borderColor: colors.primary + '30' }]}>
+                      <Text style={[typography.caption, { color: colors.primary, fontWeight: '600' }]}>{d.code}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            <View style={{ flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg }}>
+              <Button title="Cancel" onPress={() => setImportModalVisible(false)} variant="outline" size="lg" style={{ flex: 1 }} />
+              <Button title="Choose File" onPress={handlePickFile} size="lg" style={{ flex: 1 }} />
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
 
       {/* Student Detail Modal */}
       <Modal visible={!!selectedStudent} transparent animationType="slide">
@@ -395,16 +570,18 @@ export default function StudentsScreen() {
                       size="lg"
                       style={{ marginTop: spacing.lg }}
                     />
-                    <Button
-                      title="Delete Student"
-                      onPress={() => {
-                        setSelectedStudent(null);
-                        handleDelete(selectedStudent._id, selectedStudent.fullName);
-                      }}
-                      variant="danger"
-                      size="lg"
-                      style={{ marginTop: spacing.md }}
-                    />
+                    {isDeptAdmin && (
+                      <Button
+                        title="Delete Student"
+                        onPress={() => {
+                          setSelectedStudent(null);
+                          handleDelete(selectedStudent._id, selectedStudent.fullName);
+                        }}
+                        variant="danger"
+                        size="lg"
+                        style={{ marginTop: spacing.md }}
+                      />
+                    )}
                   </>
                 )}
               </>
@@ -416,113 +593,183 @@ export default function StudentsScreen() {
       {/* Batch Entry Modal */}
       <Modal visible={batchModalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <ScrollView style={styles.modalContent}>
+          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Batch Entry</Text>
-              <TouchableOpacity onPress={() => setBatchModalVisible(false)}>
-                <Ionicons name="close" size={24} color={colors.text} />
+              <View>
+                <Text style={styles.modalTitle}>Batch Entry</Text>
+                <Text style={[typography.caption, { color: colors.textTertiary, marginTop: 2 }]}>
+                  Add multiple students at once
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setBatchModalVisible(false)} style={[styles.modalCloseBtn, { backgroundColor: colors.surfaceAlt }]}>
+                <Ionicons name="close" size={20} color={colors.text} />
               </TouchableOpacity>
             </View>
+              {batchRows.map((row, index) => (
+                <View key={row.id} style={[styles.batchRow, { backgroundColor: colors.surface, ...shadows.sm }]}>
+                  <View style={styles.batchRowHeader}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                      <View style={[styles.batchRowBadge, { backgroundColor: colors.primary }]}>
+                        <Text style={styles.batchRowBadgeText}>{index + 1}</Text>
+                      </View>
+                      <View>
+                        <Text style={[typography.label, { color: colors.text, fontWeight: '700' }]}>Student #{index + 1}</Text>
+                        <Text style={[typography.caption, { color: colors.textTertiary }]}>Enter student details below</Text>
+                      </View>
+                    </View>
+                    {batchRows.length > 1 && (
+                      <TouchableOpacity onPress={() => removeBatchRow(row.id)} style={[styles.removeBtn, { backgroundColor: colors.dangerLight }]}>
+                        <Ionicons name="trash-outline" size={16} color={colors.danger} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
 
-            {batchRows.map((row, index) => (
-              <View key={row.id} style={styles.batchRow}>
-                <View style={styles.batchRowHeader}>
-                  <Text style={[typography.bodySmall, { fontWeight: '700', color: colors.textSecondary }]}>
-                    Student #{index + 1}
-                  </Text>
-                  {batchRows.length > 1 && (
-                    <TouchableOpacity onPress={() => removeBatchRow(row.id)}>
-                      <Ionicons name="close-circle" size={22} color={colors.danger} />
-                    </TouchableOpacity>
-                  )}
-                </View>
-                <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                  <View style={{ flex: 1 }}>
-                    <TextInput
-                      style={styles.batchInput}
-                      placeholder="Reg No. (11 digits)"
-                      placeholderTextColor={colors.textTertiary}
-                      value={row.registrationNumber}
-                      onChangeText={v => updateBatchRow(row.id, 'registrationNumber', v)}
-                      keyboardType="number-pad"
-                      maxLength={11}
-                    />
-                  </View>
-                  <View style={{ flex: 2 }}>
-                    <TextInput
-                      style={styles.batchInput}
-                      placeholder="Full Name"
-                      placeholderTextColor={colors.textTertiary}
-                      value={row.fullName}
-                      onChangeText={v => updateBatchRow(row.id, 'fullName', v)}
-                    />
-                  </View>
-                </View>
-                <TextInput
-                  style={styles.batchInput}
-                  placeholder="Email"
-                  placeholderTextColor={colors.textTertiary}
-                  value={row.email}
-                  onChangeText={v => updateBatchRow(row.id, 'email', v)}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-                <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[typography.caption, { color: colors.textTertiary, marginBottom: 4 }]}>Dept.</Text>
-                    <View style={styles.chipRow}>
-                      {(departments || []).map(d => (
-                        <TouchableOpacity
-                          key={d._id}
-                          style={[styles.chip, row.department === d.code && styles.chipActive]}
-                          onPress={() => updateBatchRow(row.id, 'department', d.code)}
-                        >
-                          <Text style={[styles.chipText, row.department === d.code && styles.chipTextActive]}>{d.code}</Text>
-                        </TouchableOpacity>
-                      ))}
+                  <View style={styles.batchFieldGroup}>
+                    <View style={styles.fieldRow}>
+                      <View style={isSmallScreen ? { flex: 1 } : { flex: 1 }}>
+                        <Text style={[styles.batchFieldLabel, { color: colors.textSecondary }]}>Reg. Number</Text>
+                        <TextInput
+                          style={[styles.batchInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+                          placeholder="e.g. 20211186172"
+                          placeholderTextColor={colors.textTertiary}
+                          value={row.registrationNumber}
+                          onChangeText={v => updateBatchRow(row.id, 'registrationNumber', v)}
+                          keyboardType="number-pad"
+                          maxLength={11}
+                        />
+                      </View>
+                      <View style={isSmallScreen ? { flex: 1.5 } : { flex: 2 }}>
+                        <Text style={[styles.batchFieldLabel, { color: colors.textSecondary }]}>Full Name</Text>
+                        <TextInput
+                          style={[styles.batchInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+                          placeholder="e.g. John Doe"
+                          placeholderTextColor={colors.textTertiary}
+                          value={row.fullName}
+                          onChangeText={v => updateBatchRow(row.id, 'fullName', v)}
+                        />
+                      </View>
+                    </View>
+
+                    <View>
+                      <Text style={[styles.batchFieldLabel, { color: colors.textSecondary }]}>Email</Text>
+                      <TextInput
+                        style={[styles.batchInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+                        placeholder="e.g. john.doe@school.edu"
+                        placeholderTextColor={colors.textTertiary}
+                        value={row.email}
+                        onChangeText={v => updateBatchRow(row.id, 'email', v)}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                      />
+                    </View>
+
+                    {isDeptAdmin ? (
+                      <View>
+                        <Text style={[styles.batchFieldLabel, { color: colors.textSecondary }]}>Department</Text>
+                        <View style={[styles.batchInput, { backgroundColor: colors.surfaceAlt, borderColor: colors.border, flexDirection: 'row', alignItems: 'center' }]}>
+                          <Ionicons name="business-outline" size={16} color={colors.primary} />
+                          <Text style={[typography.body, { color: colors.text, fontWeight: '600', marginLeft: spacing.sm }]}>
+                            {user?.department || 'Your Department'}
+                          </Text>
+                          <Text style={[typography.caption, { color: colors.textTertiary, marginLeft: 'auto' }]}>Auto-set</Text>
+                        </View>
+                      </View>
+                    ) : (
+                      <View>
+                        <Text style={[styles.batchFieldLabel, { color: colors.textSecondary }]}>Department</Text>
+                        <View style={[styles.chipRow, { borderColor: colors.border }]}>
+                          {(departments || []).map(d => (
+                            <TouchableOpacity
+                              key={d._id}
+                              style={[styles.chip, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }, row.department === d.code && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+                              onPress={() => updateBatchRow(row.id, 'department', d.code)}
+                            >
+                              <Text style={[styles.chipText, { color: colors.textSecondary }, row.department === d.code && styles.chipTextActive]}>{d.name || d.code}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+                    )}
+
+                    <View style={{ marginTop: spacing.sm }}>
+                      <Text style={[styles.batchFieldLabel, { color: colors.textSecondary }]}>Level</Text>
+                      <View style={[styles.chipRow, { borderColor: colors.border }]}>
+                          {LEVELS.map(l => (
+                              <TouchableOpacity
+                                key={l}
+                                style={[styles.chip, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }, row.level === l && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+                                onPress={() => updateBatchRow(row.id, 'level', l)}
+                              >
+                                <Text style={[styles.chipText, { color: colors.textSecondary }, row.level === l && styles.chipTextActive]}>{l}</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </View>
                     </View>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[typography.caption, { color: colors.textTertiary, marginBottom: 4 }]}>Level</Text>
-                    <View style={styles.chipRow}>
-                      {LEVELS.map(l => (
-                        <TouchableOpacity
-                          key={l}
-                          style={[styles.chip, row.level === l && styles.chipActive]}
-                          onPress={() => updateBatchRow(row.id, 'level', l)}
-                        >
-                          <Text style={[styles.chipText, row.level === l && styles.chipTextActive]}>{l}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-                </View>
-              </View>
-            ))}
+                ))}
 
-            <TouchableOpacity onPress={addBatchRow} style={styles.addRowButton}>
-              <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
-              <Text style={[typography.bodySmall, { color: colors.primary, fontWeight: '600', marginLeft: spacing.xs }]}>
-                Add Row
-              </Text>
-            </TouchableOpacity>
+              <TouchableOpacity onPress={addBatchRow} style={[styles.addRowButton, { borderColor: colors.primary }]}>
+                <Ionicons name="add" size={20} color={colors.primary} />
+                <Text style={[typography.label, { color: colors.primary, fontWeight: '600', marginLeft: spacing.xs }]}>
+                  Add Another Student
+                </Text>
+              </TouchableOpacity>
 
-            <Button
-              title={`Submit ${batchRows.length} Student${batchRows.length > 1 ? 's' : ''}`}
-              onPress={handleBatchSubmit}
-              loading={batchSubmitting}
-              size="lg"
-              style={{ marginTop: spacing.md }}
-            />
+              <Button
+                title={`Submit ${batchRows.length} Student${batchRows.length > 1 ? 's' : ''}`}
+                onPress={handleBatchSubmit}
+                loading={batchSubmitting}
+                size="lg"
+                style={{ marginTop: spacing.lg, marginBottom: spacing.lg }}
+              />
           </ScrollView>
         </View>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal visible={!!confirmDelete} animationType="fade" transparent onRequestClose={() => { setConfirmDelete(null); setDeleteError(''); }}>
+        <Pressable style={styles.confirmOverlay} onPress={() => { setConfirmDelete(null); setDeleteError(''); }}>
+          <Pressable style={[styles.confirmCard, { backgroundColor: colors.surface }]} onPress={e => e.stopPropagation()}>
+            <View style={styles.confirmIconWrap}>
+              <View style={[styles.confirmIconBg, { backgroundColor: colors.dangerLight }]}>
+                <Ionicons name="trash-outline" size={24} color={colors.danger} />
+              </View>
+            </View>
+            {deleteError ? (
+              <View style={[{ backgroundColor: colors.dangerLight, borderRadius: borderRadius.sm, padding: spacing.sm, marginBottom: spacing.sm, width: '100%' }]}>
+                <Text style={[{ color: colors.danger, ...typography.caption, fontWeight: '600', textAlign: 'center' }]}>{deleteError}</Text>
+              </View>
+            ) : null}
+            <Text style={[styles.confirmTitle, { color: colors.text }]}>Delete Student</Text>
+            <Text style={[styles.confirmMessage, { color: colors.textSecondary }]}>
+              Remove "{confirmDelete?.name}"? This cannot be undone.
+            </Text>
+            <View style={styles.confirmActions}>
+              <TouchableOpacity
+                onPress={() => { setConfirmDelete(null); setDeleteError(''); }}
+                style={[styles.confirmBtn, { backgroundColor: colors.surfaceAlt }]}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.confirmBtnText, { color: colors.text }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={executeDelete}
+                style={[styles.confirmBtn, { backgroundColor: colors.danger }]}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.confirmBtnText, { color: '#FFF' }]}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FAFAFA' },
+  container: { flex: 1 },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -569,7 +816,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: borderRadius.xl,
     padding: spacing.lg,
     paddingBottom: spacing.xxl,
-    maxHeight: '80%',
+    maxHeight: '90%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -633,51 +880,75 @@ const styles = StyleSheet.create({
     color: '#DC2626',
     flex: 1,
   },
+  batchScrollArea: {
+    flex: 1,
+  },
   batchRow: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     padding: spacing.md,
+    paddingHorizontal: spacing.sm,
     marginBottom: spacing.md,
   },
   batchRowHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: spacing.md,
+  },
+  batchRowBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
-    marginBottom: spacing.sm,
+    justifyContent: 'center',
+  },
+  batchRowBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  removeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  batchFieldGroup: {
+    gap: spacing.sm,
+  },
+  batchFieldLabel: {
+    ...typography.caption,
+    fontWeight: '600',
+    marginBottom: spacing.xs,
+  },
+  fieldRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
   },
   batchInput: {
-    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
     borderRadius: borderRadius.sm,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.sm + 2,
     fontSize: 15,
-    color: '#1F2937',
-    marginBottom: spacing.sm,
+    fontFamily: 'PlusJakartaSans_400Regular',
+    marginBottom: spacing.xs,
   },
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.xs,
-    marginBottom: spacing.sm,
   },
   chip: {
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
+    paddingVertical: spacing.xs + 2,
     borderRadius: borderRadius.full,
-    backgroundColor: '#F3F4F6',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  chipActive: {
-    backgroundColor: '#059669',
-    borderColor: '#059669',
   },
   chipText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#6B7280',
   },
   chipTextActive: {
     color: '#FFFFFF',
@@ -687,10 +958,94 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: spacing.md,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderWidth: 1.5,
     borderRadius: borderRadius.md,
     borderStyle: 'dashed',
+  },
+  modalCloseBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  importInfoCard: {
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  importTypeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+  },
+  importColRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  importColBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
+  },
+  importSampleBox: {
+    borderWidth: 1,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+  },
+  confirmOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  confirmCard: {
+    width: '100%',
+    maxWidth: 380,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xl,
+    alignItems: 'center',
+  },
+  confirmIconWrap: {
+    marginBottom: spacing.md,
+  },
+  confirmIconBg: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  confirmTitle: {
+    ...typography.h3,
     marginBottom: spacing.sm,
+  },
+  confirmMessage: {
+    ...typography.body,
+    textAlign: 'center',
+    marginBottom: spacing.xl,
+    lineHeight: 22,
+  },
+  confirmActions: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    width: '100%',
+  },
+  confirmBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: borderRadius.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  confirmBtnText: {
+    ...typography.label,
+    fontWeight: '700',
   },
 });

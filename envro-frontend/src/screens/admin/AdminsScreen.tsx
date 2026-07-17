@@ -26,6 +26,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import { adminsApi } from '../../api/admins';
 import { facultiesApi } from '../../api/faculties';
 import { departmentsApi } from '../../api/departments';
+import { getFriendlyErrorMessage } from '../../services/apiErrors';
+import { useAutoRetry } from '../../hooks/useAutoRetry';
+import { ToastService } from '../../services/ToastService';
 import type { Faculty, Department } from '../../types';
 
 type AdminType = 'environmentalAdmin' | 'facultyAdmin' | 'departmentAdmin';
@@ -62,6 +65,7 @@ export default function AdminsScreen() {
   const [quickDeptCode, setQuickDeptCode] = useState('');
   const [quickDeptSaving, setQuickDeptSaving] = useState(false);
   const [quickDeptError, setQuickDeptError] = useState('');
+  const [adminMenuTarget, setAdminMenuTarget] = useState<any>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [deleteError, setDeleteError] = useState('');
   const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -100,7 +104,7 @@ export default function AdminsScreen() {
         if (facData.success) setFaculties(facData.data);
       }
     } catch (err: any) {
-      if (!append) setFetchError(err.response?.data?.message || 'Failed to load admins');
+      if (!append) setFetchError(getFriendlyErrorMessage(err, 'admins'));
     }
     finally { setLoading(false); setRefreshing(false); setLoadingMore(false); }
   }, [activeTab]);
@@ -114,6 +118,8 @@ export default function AdminsScreen() {
       fetchDepartments(facultyId);
     }
   }, [fetchAdmins, activeTab, user, fetchDepartments]));
+
+  useAutoRetry(() => { setPage(1); setHasMore(true); fetchAdmins(1); }, !loading);
 
   useEffect(() => {
     if (activeTab === 'departmentAdmin') {
@@ -152,8 +158,10 @@ export default function AdminsScreen() {
         setQuickDeptError('');
         await fetchDepartments(faculty);
         setSelectedDepartment(data.data._id || data.data?.department?._id);
+        ToastService.success('Department Created', 'Department added successfully.');
       }
     } catch (err: any) {
+      ToastService.error('Error', err.response?.data?.message || 'Failed to create department');
       setQuickDeptError(err.response?.data?.message || 'Failed to create department');
     } finally { setQuickDeptSaving(false); }
   };
@@ -191,7 +199,9 @@ export default function AdminsScreen() {
       setCreateError('');
       setEditTarget(null);
       fetchAdmins();
+      ToastService.success(editTarget ? 'Admin Updated' : 'Admin Created', 'Admin account ' + (editTarget ? 'updated' : 'created') + ' successfully.');
     } catch (err: any) {
+      ToastService.error('Error', err.response?.data?.message || (editTarget ? 'Failed to update admin' : 'Failed to create admin'));
       setCreateError(err.response?.data?.message || (editTarget ? 'Failed to update admin' : 'Failed to create admin'));
     } finally { setSaving(false); }
   };
@@ -210,7 +220,9 @@ export default function AdminsScreen() {
       else if (activeTab === 'facultyAdmin') await adminsApi.toggleFacultyAdminStatus(id);
       else await adminsApi.toggleDepartmentAdminStatus(id);
       fetchAdmins();
+      ToastService.success('Status Updated', 'Admin status changed successfully.');
     } catch (err: any) {
+      ToastService.error('Error', err.response?.data?.message || 'Failed to toggle admin status');
       setToggleError(err.response?.data?.message || 'Failed to toggle admin status');
     }
     finally { setTogglingId(null); setToggleTarget(null); }
@@ -246,17 +258,19 @@ export default function AdminsScreen() {
       setAdmins(prev => prev.filter(a => a._id !== id));
       setTotalAdmins(prev => Math.max(0, prev - 1));
       setConfirmDelete(null);
+      ToastService.success('Admin Deleted', 'Admin account has been removed.');
     } catch (err: any) {
+      ToastService.error('Error', err.response?.data?.message || 'Failed to delete admin');
       setDeleteError(err.response?.data?.message || 'Failed to delete admin');
     }
   };
 
   if (loading) return <SkeletonList variant="admin-card" />;
 
-  const allTabs: { key: AdminType; label: string }[] = [
-    { key: 'environmentalAdmin', label: 'Environmental Admins' },
-    { key: 'facultyAdmin', label: 'Faculty Admins' },
-    { key: 'departmentAdmin', label: 'Dept. Admins' },
+  const allTabs: { key: AdminType; label: string; shortLabel: string }[] = [
+    { key: 'environmentalAdmin', label: 'Environmental Admins', shortLabel: 'Env. Admins' },
+    { key: 'facultyAdmin', label: 'Faculty Admins', shortLabel: 'Faculty Admins' },
+    { key: 'departmentAdmin', label: 'Dept. Admins', shortLabel: 'Dept. Admins' },
   ];
 
   const tabs = user?.role === 'environmentalAdmin'
@@ -283,8 +297,8 @@ export default function AdminsScreen() {
               style={[styles.tab, activeTab === tab.key && styles.tabActive]}
               onPress={() => { setActiveTab(tab.key); setToggleError(''); setFetchError(''); }}
             >
-              <Text style={[typography.bodySmall, { fontWeight: '600', color: activeTab === tab.key ? '#FFF' : colors.textSecondary }]}>
-                {tab.label}
+              <Text style={[typography.bodySmall, { fontWeight: '600', color: activeTab === tab.key ? '#FFF' : colors.textSecondary }]} numberOfLines={1}>
+                {tab.shortLabel}
               </Text>
             </TouchableOpacity>
           ))}
@@ -333,11 +347,11 @@ export default function AdminsScreen() {
                 <View style={styles.adminAvatar}>
                   <Text style={styles.avatarText}>{item.fullName?.charAt(0) || 'A'}</Text>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[typography.body, { fontWeight: '600', color: colors.text }]}>{item.fullName}</Text>
-                  <Text style={[typography.caption, { color: colors.textSecondary }]}>{item.email}</Text>
+                <View style={{ flex: 1, flexShrink: 1 }}>
+                  <Text style={[typography.body, { fontWeight: '600', color: colors.text, flexShrink: 1 }]}>{item.fullName}</Text>
+                  <Text style={[typography.caption, { color: colors.textSecondary }]} numberOfLines={1}>{item.email}</Text>
                   {item.department?.name && (
-                    <Text style={[typography.caption, { color: colors.textTertiary, marginTop: 2 }]}>
+                    <Text style={[typography.caption, { color: colors.textTertiary, marginTop: 2 }]} numberOfLines={1}>
                       {item.department.name} ({item.department.code})
                     </Text>
                   )}
@@ -348,16 +362,8 @@ export default function AdminsScreen() {
                   </View>
                 </View>
                 <View style={styles.actions}>
-                  <TouchableOpacity onPress={() => openEditAdmin(item)} style={styles.actionBtn}>
-                    <Ionicons name="pencil-outline" size={18} color={colors.info} />
-                  </TouchableOpacity>
-                  {activeTab !== 'environmentalAdmin' && (
-                    <TouchableOpacity onPress={() => setToggleTarget(item._id)} style={styles.actionBtn} disabled={togglingId === item._id}>
-                      <Ionicons name={item.isActive ? 'eye-off-outline' : 'eye-outline'} size={18} color={togglingId === item._id ? colors.textTertiary : colors.secondary} />
-                    </TouchableOpacity>
-                  )}
-                  <TouchableOpacity onPress={() => handleDelete(item._id, item.fullName)} style={styles.actionBtn}>
-                    <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                  <TouchableOpacity onPress={() => setAdminMenuTarget(item)} style={styles.actionBtn} activeOpacity={0.7}>
+                    <Ionicons name="ellipsis-vertical" size={18} color={colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -554,6 +560,46 @@ export default function AdminsScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Admin Actions Menu */}
+      {adminMenuTarget && (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 999 }]}>
+          <TouchableOpacity style={styles.confirmOverlay} activeOpacity={1} onPress={() => setAdminMenuTarget(null)}>
+            <TouchableOpacity style={[styles.menuCard, { backgroundColor: colors.surface }]} activeOpacity={1} onPress={e => { e.stopPropagation(); }}>
+              <Text style={[styles.menuTitle, { color: colors.text }]} numberOfLines={1}>
+                {adminMenuTarget.fullName || 'Admin'}
+              </Text>
+              <View>
+                <TouchableOpacity style={styles.menuItem} onPress={() => { const a = adminMenuTarget; setAdminMenuTarget(null); openEditAdmin(a); }}>
+                  <View style={[styles.menuItemIcon, { backgroundColor: colors.infoLight }]}>
+                    <Ionicons name="pencil-outline" size={18} color={colors.info} />
+                  </View>
+                  <Text style={[styles.menuItemText, { color: colors.text }]}>Edit Admin</Text>
+                </TouchableOpacity>
+                {activeTab !== 'environmentalAdmin' && (
+                  <TouchableOpacity style={styles.menuItem} onPress={() => { const a = adminMenuTarget; setAdminMenuTarget(null); setToggleTarget(a._id); }}>
+                    <View style={[styles.menuItemIcon, { backgroundColor: colors.secondaryLight }]}>
+                      <Ionicons name={adminMenuTarget.isActive ? 'eye-off-outline' : 'eye-outline'} size={18} color={colors.secondary} />
+                    </View>
+                    <Text style={[styles.menuItemText, { color: colors.text }]}>
+                      {adminMenuTarget.isActive ? 'Deactivate' : 'Activate'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity style={styles.menuItem} onPress={() => { const a = adminMenuTarget; setAdminMenuTarget(null); handleDelete(a._id, a.fullName); }}>
+                  <View style={[styles.menuItemIcon, { backgroundColor: colors.dangerLight }]}>
+                    <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                  </View>
+                  <Text style={[styles.menuItemText, { color: colors.danger }]}>Delete Admin</Text>
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity style={[styles.menuCancel, { borderTopColor: colors.border }]} onPress={() => setAdminMenuTarget(null)}>
+                <Text style={[styles.menuCancelText, { color: colors.textSecondary }]}>Cancel</Text>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
@@ -581,6 +627,7 @@ const getStyles = (c: typeof lightColors) => StyleSheet.create({
   tab: {
     flex: 1,
     paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
     borderRadius: borderRadius.sm,
     alignItems: 'center',
   },
@@ -739,6 +786,44 @@ const getStyles = (c: typeof lightColors) => StyleSheet.create({
     justifyContent: 'center',
   },
   confirmBtnText: {
+    ...typography.body,
+    fontWeight: '600',
+  },
+  menuCard: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: borderRadius.xl,
+    overflow: 'hidden',
+  },
+  menuTitle: {
+    ...typography.h4,
+    padding: spacing.lg,
+    paddingBottom: spacing.sm,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
+  menuItemIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuItemText: {
+    ...typography.body,
+    fontWeight: '600',
+  },
+  menuCancel: {
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    borderTopWidth: 1,
+  },
+  menuCancelText: {
     ...typography.body,
     fontWeight: '600',
   },

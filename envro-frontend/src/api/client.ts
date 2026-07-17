@@ -8,9 +8,13 @@ export function onSessionExpired(handler: () => void) {
   sessionExpiredHandler = handler;
 }
 
+export function setSessionExpiredHandler(handler: () => void) {
+  sessionExpiredHandler = handler;
+}
+
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000,
+  timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -26,16 +30,20 @@ api.interceptors.response.use(
   (response: any) => response,
   async (error: any) => {
     const originalRequest = error.config;
-
-    // Extract a user-friendly error message
     const data = error.response?.data;
+
     if (data?.errors?.length) {
       error.userMessage = data.errors[0].message;
-      if (data.message === 'Validation failed' || data.message === 'Validation error') {
-        data.message = data.errors[0].message;
-      }
     } else if (data?.message) {
       error.userMessage = data.message;
+    } else if (!error.response) {
+      if (error.code === 'ECONNABORTED') {
+        error.userMessage = 'The request is taking longer than expected. Please check your connection and try again.';
+      } else {
+        error.userMessage = 'No internet connection. Please check your connection and try again.';
+      }
+    } else if (error.response?.status >= 500) {
+      error.userMessage = 'Something went wrong on our end. Please try again later.';
     } else {
       error.userMessage = 'Something went wrong. Please try again.';
     }

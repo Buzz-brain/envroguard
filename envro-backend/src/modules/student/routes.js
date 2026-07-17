@@ -4,18 +4,18 @@ import * as studentValidation from './validation.js';
 import { authenticate } from '../../middleware/auth.js';
 import { authorize } from '../../middleware/rbac.js';
 import { validate } from '../../middleware/validate.js';
-import { uploadMiddleware } from '../../middleware/upload.js';
+import { uploadMiddleware, uploadDocuments } from '../../middleware/upload.js';
 import { logAction } from '../../services/audit.service.js';
 import { ROLES } from '../../constants/roles.js';
 
 const router = Router();
 
-// Import students (CSV/Excel) — department admin only
+// Import students (CSV/Excel) — department admin & faculty admin
 router.post(
   '/import',
   authenticate,
-  authorize(ROLES.DEPARTMENT_ADMIN),
-  uploadMiddleware('file', 1),
+  authorize(ROLES.DEPARTMENT_ADMIN, ROLES.FACULTY_ADMIN),
+  uploadDocuments.single('file'),
   studentValidation.importStudents,
   validate,
   logAction('Student', 'import'),

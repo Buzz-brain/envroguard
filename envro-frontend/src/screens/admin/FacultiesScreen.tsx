@@ -21,6 +21,9 @@ import { typography, spacing, borderRadius } from '../../constants';
 import { useColors } from '../../contexts/ThemeContext';
 import { facultiesApi } from '../../api/faculties';
 import { departmentsApi } from '../../api/departments';
+import { ToastService } from '../../services/ToastService';
+import { getFriendlyErrorMessage } from '../../services/apiErrors';
+import { useAutoRetry } from '../../hooks/useAutoRetry';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Faculty, Department } from '../../types';
 
@@ -38,6 +41,7 @@ export default function FacultiesScreen() {
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
   const [facultyError, setFacultyError] = useState('');
+  const [facultyMenuTarget, setFacultyMenuTarget] = useState<Faculty | null>(null);
   const [deleteFacultyTarget, setDeleteFacultyTarget] = useState<Faculty | null>(null);
   const [deleteError, setDeleteError] = useState('');
   const [togglingFaculty, setTogglingFaculty] = useState<string | null>(null);
@@ -59,9 +63,11 @@ export default function FacultiesScreen() {
   const [deleteDeptTarget, setDeleteDeptTarget] = useState<Department | null>(null);
   const [deleteDeptError, setDeleteDeptError] = useState('');
   const [togglingDept, setTogglingDept] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const fetchFaculties = useCallback(async () => {
     try {
+      setFetchError(null);
       const { data } = await facultiesApi.getAll();
       if (data.success) {
         const list = data.data;
@@ -72,11 +78,13 @@ export default function FacultiesScreen() {
           setFaculties(list);
         }
       }
-    } catch {}
+    } catch (err: any) { setFetchError(getFriendlyErrorMessage(err, 'faculties')); }
     finally { setLoading(false); setRefreshing(false); }
   }, [user, isFacultyScoped]);
 
   useFocusEffect(useCallback(() => { fetchFaculties(); }, [fetchFaculties]));
+
+  useAutoRetry(fetchFaculties, !loading);
 
   const openCreate = () => {
     setEditFaculty(null);
@@ -104,9 +112,11 @@ export default function FacultiesScreen() {
       } else {
         await facultiesApi.create({ name: name.trim(), code: code.trim(), description: description.trim() });
       }
-      setModalVisible(false);
       fetchFaculties();
+      setModalVisible(false);
+      ToastService.success('Faculty Saved', 'Faculty has been ' + (editFaculty ? 'updated' : 'created') + ' successfully.');
     } catch (err: any) {
+      ToastService.error('Error', err.response?.data?.message || 'Failed to save faculty');
       setFacultyError(err.response?.data?.message || 'Failed to save faculty');
     } finally { setSaving(false); }
   };
@@ -124,6 +134,7 @@ export default function FacultiesScreen() {
         setTogglingFaculty(f._id);
         await facultiesApi.toggleStatus(f._id);
         fetchFaculties();
+        ToastService.success('Status Updated', 'Status changed successfully');
       } else {
         const d = toggleTarget.item;
         setTogglingDept(d._id);
@@ -131,8 +142,10 @@ export default function FacultiesScreen() {
         const fid = typeof d.faculty === 'string' ? d.faculty : d.faculty._id;
         const { data } = await departmentsApi.getAll({ faculty: fid });
         if (data.success) setFacultyDepts(prev => ({ ...prev, [fid]: data.data }));
+        ToastService.success('Status Updated', 'Status changed successfully');
       }
     } catch (err: any) {
+      ToastService.error('Error', err.response?.data?.message || 'Failed to update status');
       setToggleError(err.response?.data?.message || 'Failed to update status');
     } finally {
       setTogglingFaculty(null);
@@ -148,7 +161,9 @@ export default function FacultiesScreen() {
       await facultiesApi.delete(deleteFacultyTarget._id);
       setFaculties(prev => prev.filter(f => f._id !== deleteFacultyTarget._id));
       setDeleteFacultyTarget(null);
+      ToastService.success('Faculty Deleted', 'The faculty has been removed.');
     } catch (err: any) {
+      ToastService.error('Error', err.response?.data?.message || 'Failed to delete faculty');
       setDeleteError(err.response?.data?.message || 'Failed to delete faculty');
     }
   };
@@ -206,7 +221,9 @@ export default function FacultiesScreen() {
       if (data.success) {
         setFacultyDepts(prev => ({ ...prev, [deptFacultyId]: data.data }));
       }
+      ToastService.success('Department Saved', 'Department has been ' + (deptEditTarget ? 'updated' : 'created') + ' successfully.');
     } catch (err: any) {
+      ToastService.error('Error', err.response?.data?.message || 'Failed to save department');
       setDeptError(err.response?.data?.message || 'Failed to save department');
     } finally { setDeptSaving(false); }
   };
@@ -222,7 +239,9 @@ export default function FacultiesScreen() {
         [fid]: (prev[fid] || []).filter(d => d._id !== deleteDeptTarget._id),
       }));
       setDeleteDeptTarget(null);
+      ToastService.success('Department Deleted', 'The department has been removed.');
     } catch (err: any) {
+      ToastService.error('Error', err.response?.data?.message || 'Failed to delete department');
       setDeleteDeptError(err.response?.data?.message || 'Failed to delete department');
     }
   };
@@ -259,32 +278,22 @@ export default function FacultiesScreen() {
                   <View style={styles.facultyIcon}>
                     <Ionicons name="business-outline" size={24} color={colors.primary} />
                   </View>
-                  <View style={{ flex: 1 }}>
+                  <View style={{ flex: 1, flexShrink: 1 }}>
                     <View style={styles.facultyHeader}>
-                      <Text style={[typography.body, { fontWeight: '600', color: colors.text }]}>{item.name}</Text>
+                      <Text style={[typography.body, { fontWeight: '600', color: colors.text, flexShrink: 1 }]}>{item.name}</Text>
                       <View style={[styles.activeBadge, { backgroundColor: item.isActive ? colors.successLight : colors.dangerLight }]}>
                         <Text style={[typography.caption, { color: item.isActive ? colors.success : colors.danger, fontWeight: '600' }]}>
                           {item.isActive ? 'Active' : 'Inactive'}
                         </Text>
                       </View>
                     </View>
-                    {item.code && <Text style={[typography.caption, { color: colors.textSecondary }]}>Code: {item.code}</Text>}
+                    {item.code && <Text style={[typography.caption, { color: colors.textSecondary }]} numberOfLines={1}>Code: {item.code}</Text>}
                   </View>
                 </TouchableOpacity>
                 <View style={styles.actions}>
                   {canManage && (
-                    <TouchableOpacity onPress={() => openEdit(item)} style={styles.actionBtn}>
-                      <Ionicons name="pencil-outline" size={16} color={colors.info} />
-                    </TouchableOpacity>
-                  )}
-                  {canManage && (
-                    <TouchableOpacity onPress={() => handleToggle(item)} style={styles.actionBtn} disabled={togglingFaculty === item._id}>
-                      <Ionicons name={item.isActive ? 'eye-off-outline' : 'eye-outline'} size={16} color={togglingFaculty === item._id ? colors.textTertiary : colors.secondary} />
-                    </TouchableOpacity>
-                  )}
-                  {canManage && (
-                    <TouchableOpacity onPress={() => setDeleteFacultyTarget(item)} style={styles.actionBtn}>
-                      <Ionicons name="trash-outline" size={16} color={colors.danger} />
+                    <TouchableOpacity onPress={() => setFacultyMenuTarget(item)} style={styles.actionBtn} activeOpacity={0.7}>
+                      <Ionicons name="ellipsis-vertical" size={18} color={colors.textSecondary} />
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity onPress={() => toggleExpandFaculty(item._id)} style={styles.actionBtn} activeOpacity={0.7}>
@@ -483,6 +492,44 @@ export default function FacultiesScreen() {
         </Pressable>
       </Modal>
 
+      {/* Faculty Actions Menu */}
+      {facultyMenuTarget && (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 999 }]}>
+          <TouchableOpacity style={styles.confirmOverlay} activeOpacity={1} onPress={() => setFacultyMenuTarget(null)}>
+            <TouchableOpacity style={[styles.menuCard, { backgroundColor: colors.surface }]} activeOpacity={1} onPress={e => { e.stopPropagation(); }}>
+              <Text style={[styles.menuTitle, { color: colors.text }]} numberOfLines={1}>
+                {facultyMenuTarget.name || 'Faculty'}
+              </Text>
+              <View>
+                <TouchableOpacity style={styles.menuItem} onPress={() => { const f = facultyMenuTarget; setFacultyMenuTarget(null); openEdit(f); }}>
+                  <View style={[styles.menuItemIcon, { backgroundColor: colors.infoLight }]}>
+                    <Ionicons name="pencil-outline" size={18} color={colors.info} />
+                  </View>
+                  <Text style={[styles.menuItemText, { color: colors.text }]}>Edit Faculty</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.menuItem} onPress={() => { const f = facultyMenuTarget; setFacultyMenuTarget(null); handleToggle(f); }}>
+                  <View style={[styles.menuItemIcon, { backgroundColor: colors.secondaryLight }]}>
+                    <Ionicons name={facultyMenuTarget.isActive ? 'eye-off-outline' : 'eye-outline'} size={18} color={colors.secondary} />
+                  </View>
+                  <Text style={[styles.menuItemText, { color: colors.text }]}>
+                    {facultyMenuTarget.isActive ? 'Deactivate' : 'Activate'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.menuItem} onPress={() => { const f = facultyMenuTarget; setFacultyMenuTarget(null); setDeleteFacultyTarget(f); }}>
+                  <View style={[styles.menuItemIcon, { backgroundColor: colors.dangerLight }]}>
+                    <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                  </View>
+                  <Text style={[styles.menuItemText, { color: colors.danger }]}>Delete Faculty</Text>
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity style={[styles.menuCancel, { borderTopColor: colors.border }]} onPress={() => setFacultyMenuTarget(null)}>
+                <Text style={[styles.menuCancelText, { color: colors.textSecondary }]}>Cancel</Text>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Activate / Deactivate Confirmation */}
       <Modal visible={toggleTarget !== null} transparent animationType="fade" onRequestClose={() => { setToggleTarget(null); setToggleError(''); }}>
         <Pressable style={styles.confirmOverlay} onPress={() => { setToggleTarget(null); setToggleError(''); }}>
@@ -565,8 +612,10 @@ const getStyles = (c: typeof lightColors) => StyleSheet.create({
     paddingVertical: 2,
     borderRadius: borderRadius.full,
   },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  actionBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  actionBtn: { width: 36, height: 44, alignItems: 'center', justifyContent: 'center' },
+  deptActions: { flexDirection: 'row', alignItems: 'center', gap: 2, marginLeft: spacing.sm },
+  deptActionBtn: { width: 36, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: borderRadius.sm },
   deptChipRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -642,19 +691,6 @@ const getStyles = (c: typeof lightColors) => StyleSheet.create({
   deptCodeBadge: {
     paddingHorizontal: spacing.sm,
     paddingVertical: 1,
-    borderRadius: borderRadius.sm,
-  },
-  deptActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    marginLeft: spacing.sm,
-  },
-  deptActionBtn: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
     borderRadius: borderRadius.sm,
   },
   modalOverlay: {
@@ -733,6 +769,44 @@ const getStyles = (c: typeof lightColors) => StyleSheet.create({
     justifyContent: 'center',
   },
   confirmBtnText: {
+    ...typography.body,
+    fontWeight: '600',
+  },
+  menuCard: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: borderRadius.xl,
+    overflow: 'hidden',
+  },
+  menuTitle: {
+    ...typography.h4,
+    padding: spacing.lg,
+    paddingBottom: spacing.sm,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
+  menuItemIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuItemText: {
+    ...typography.body,
+    fontWeight: '600',
+  },
+  menuCancel: {
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    borderTopWidth: 1,
+  },
+  menuCancelText: {
     ...typography.body,
     fontWeight: '600',
   },

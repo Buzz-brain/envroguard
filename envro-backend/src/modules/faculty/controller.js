@@ -2,7 +2,7 @@ import { asyncHandler, apiResponse } from '../../utils/index.js';
 import * as facultyService from './service.js';
 
 export const createFaculty = asyncHandler(async (req, res) => {
-  const faculty = await facultyService.createFacultyService(req.body);
+  const faculty = await facultyService.createFacultyService(req.body, req.user.id);
   return apiResponse(res, 201, 'Faculty created successfully', faculty);
 });
 
@@ -17,7 +17,7 @@ export const getFacultyById = asyncHandler(async (req, res) => {
 });
 
 export const updateFaculty = asyncHandler(async (req, res) => {
-  const faculty = await facultyService.updateFacultyService(req.params.id, req.body);
+  const faculty = await facultyService.updateFacultyService(req.params.id, req.body, req.user.id);
   return apiResponse(res, 200, 'Faculty updated successfully', faculty);
 });
 
@@ -27,7 +27,7 @@ export const deleteFaculty = asyncHandler(async (req, res) => {
 });
 
 export const toggleFacultyStatus = asyncHandler(async (req, res) => {
-  const result = await facultyService.toggleFacultyStatusService(req.params.id);
+  const result = await facultyService.toggleFacultyStatusService(req.params.id, req.user.id);
   return apiResponse(
     res,
     200,

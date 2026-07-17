@@ -12,7 +12,11 @@ export const importStudents = asyncHandler(async (req, res) => {
   const results = await studentService.importStudentsService(
     req.file.buffer,
     facultyId,
-    fileType
+    fileType,
+    req.user.id,
+    req.user.role,
+    req.user.department,
+    req.user.departmentCode
   );
 
   return apiResponse(res, 200, 'Student import completed', results);
@@ -21,7 +25,8 @@ export const importStudents = asyncHandler(async (req, res) => {
 export const batchCreateStudents = asyncHandler(async (req, res) => {
   const results = await studentService.batchCreateStudentsService(
     req.body.students,
-    req.user.faculty
+    req.user.faculty,
+    req.user.id
   );
 
   return apiResponse(res, 200, 'Batch student creation completed', results);
@@ -60,7 +65,8 @@ export const updateStudent = asyncHandler(async (req, res) => {
 export const deleteStudent = asyncHandler(async (req, res) => {
   const result = await studentService.deleteStudentService(
     req.params.id,
-    req.user.faculty
+    req.user.faculty,
+    req.user.id
   );
 
   return apiResponse(res, 200, result.message);

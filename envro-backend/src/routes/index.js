@@ -9,6 +9,7 @@ import departmentAdminRoutes from '../modules/departmentAdmin/routes.js';
 import facultyAdminRoutes from '../modules/facultyAdmin/routes.js';
 import environmentalAdminRoutes from '../modules/environmentalAdmin/routes.js';
 import departmentRoutes from '../modules/department/routes.js';
+import auditRoutes from '../modules/audit/routes.js';
 
 export const setupRoutes = () => {
   const router = Router();
@@ -42,6 +43,9 @@ export const setupRoutes = () => {
 
   // Device Token routes
   router.use('/device-tokens', deviceTokenRoutes);
+
+  // Audit Log routes
+  router.use('/audit-logs', auditRoutes);
 
   return router;
 };

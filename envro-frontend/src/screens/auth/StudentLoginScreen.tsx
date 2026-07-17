@@ -15,6 +15,8 @@ import { typography, spacing, borderRadius } from '../../constants';
 import { useColors } from '../../contexts/ThemeContext';
 import { authApi } from '../../api/auth';
 import { useAuth } from '../../contexts/AuthContext';
+import { getFriendlyErrorMessage } from '../../services/apiErrors';
+import { ToastService } from '../../services/ToastService';
 
 export default function StudentLoginScreen({ navigation }: any) {
   const colors = useColors();
@@ -37,7 +39,9 @@ export default function StudentLoginScreen({ navigation }: any) {
         await login(data.data.account, data.data.accessToken, data.data.refreshToken);
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed. Please try again.');
+      const msg = getFriendlyErrorMessage(err, 'login');
+      setError(msg);
+      ToastService.error('Login Failed', msg);
     } finally {
       setLoading(false);
     }
@@ -45,10 +49,13 @@ export default function StudentLoginScreen({ navigation }: any) {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backArrow}>
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
+        </TouchableOpacity>
         <View style={styles.header}>
           <View style={styles.backCircle}>
             <Ionicons name="school-outline" size={28} color={colors.primary} />
@@ -58,12 +65,12 @@ export default function StudentLoginScreen({ navigation }: any) {
         </View>
 
         <View style={styles.form}>
-          {error && (
+          {error ? (
             <View style={styles.errorBox}>
               <Ionicons name="alert-circle" size={18} color={colors.danger} />
               <Text style={styles.errorText}>{error}</Text>
             </View>
-          )}
+          ) : null}
           <Input
             label="Registration Number"
             placeholder="e.g. 20211186172"
@@ -107,13 +114,23 @@ export default function StudentLoginScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
   },
   content: {
     flexGrow: 1,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.xxxl,
     paddingBottom: spacing.xl,
+  },
+  backArrow: {
+    position: 'absolute',
+    top: spacing.xl,
+    left: spacing.md,
+    zIndex: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   header: {
     alignItems: 'center',

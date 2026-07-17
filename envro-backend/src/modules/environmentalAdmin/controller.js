@@ -3,7 +3,8 @@ import * as environmentalAdminService from './service.js';
 
 export const createEnvironmentalAdmin = asyncHandler(async (req, res) => {
   const admin = await environmentalAdminService.createEnvironmentalAdminService(
-    req.body
+    req.body,
+    req.user.id
   );
 
   return apiResponse(res, 201, 'Environmental admin created successfully', {
@@ -24,7 +25,8 @@ export const getAllEnvironmentalAdmins = asyncHandler(async (req, res) => {
 export const updateEnvironmentalAdmin = asyncHandler(async (req, res) => {
   const admin = await environmentalAdminService.updateEnvironmentalAdminService(
     req.params.id,
-    req.body
+    req.body,
+    req.user.id
   );
 
   return apiResponse(res, 200, 'Environmental admin updated successfully', admin);
@@ -32,7 +34,8 @@ export const updateEnvironmentalAdmin = asyncHandler(async (req, res) => {
 
 export const toggleEnvironmentalAdminStatus = asyncHandler(async (req, res) => {
   const result = await environmentalAdminService.toggleEnvironmentalAdminStatusService(
-    req.params.id
+    req.params.id,
+    req.user.id
   );
 
   return apiResponse(

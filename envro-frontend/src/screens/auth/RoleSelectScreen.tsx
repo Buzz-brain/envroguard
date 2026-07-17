@@ -1,9 +1,11 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { typography, spacing, borderRadius, shadows } from '../../constants';
 import { useColors } from '../../contexts/ThemeContext';
+import { hapticFeedback } from '../../services/HapticService';
+import { SoundService } from '../../services/SoundService';
 
 const roles = [
   {
@@ -28,12 +30,12 @@ export default function RoleSelectScreen({ navigation }: any) {
   const colors = useColors();
   return (
     <View style={styles.container}>
-      <TouchableOpacity
-        style={styles.backButton}
+      <Pressable
+        style={({ pressed }) => [styles.backButton, pressed && styles.backPressed]}
         onPress={() => navigation.goBack()}
       >
         <Ionicons name="arrow-back" size={24} color={colors.text} />
-      </TouchableOpacity>
+      </Pressable>
 
       <Text style={styles.title}>Who are you?</Text>
       <Text style={styles.subtitle}>
@@ -42,11 +44,14 @@ export default function RoleSelectScreen({ navigation }: any) {
 
       <View style={styles.rolesContainer}>
         {roles.map((role) => (
-          <TouchableOpacity
+          <Pressable
             key={role.id}
-            activeOpacity={0.9}
-            onPress={() => navigation.navigate(role.route)}
-            style={[shadows.lg]}
+            onPress={() => {
+              hapticFeedback.light();
+              SoundService.info();
+              navigation.navigate(role.route);
+            }}
+            style={({ pressed }) => [shadows.lg, pressed && styles.pressedCard]}
           >
             <LinearGradient
               colors={role.gradient}
@@ -63,7 +68,7 @@ export default function RoleSelectScreen({ navigation }: any) {
                 <Ionicons name="arrow-forward" size={20} color="#FFF" />
               </View>
             </LinearGradient>
-          </TouchableOpacity>
+          </Pressable>
         ))}
       </View>
     </View>
@@ -87,6 +92,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
     ...shadows.sm,
   },
+  backPressed: {
+    opacity: 0.7,
+  },
   title: {
     ...typography.h1,
     color: '#1F2937',
@@ -105,6 +113,9 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     paddingTop: spacing.xl,
     minHeight: 160,
+  },
+  pressedCard: {
+    transform: [{ scale: 0.98 }],
   },
   roleIcon: {
     width: 56,

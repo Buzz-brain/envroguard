@@ -35,7 +35,8 @@ export const getFacultyAdminById = asyncHandler(async (req, res) => {
 export const updateFacultyAdmin = asyncHandler(async (req, res) => {
   const admin = await facultyAdminService.updateFacultyAdminService(
     req.params.id,
-    req.body
+    req.body,
+    req.user.id
   );
 
   return apiResponse(res, 200, 'Faculty admin updated successfully', admin);
@@ -43,7 +44,8 @@ export const updateFacultyAdmin = asyncHandler(async (req, res) => {
 
 export const toggleFacultyAdminStatus = asyncHandler(async (req, res) => {
   const result = await facultyAdminService.toggleFacultyAdminStatusService(
-    req.params.id
+    req.params.id,
+    req.user.id
   );
 
   return apiResponse(

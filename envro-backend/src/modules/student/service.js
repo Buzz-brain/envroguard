@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import csv from 'csv-parser';
 import * as XLSX from 'xlsx';
 import { Readable } from 'stream';
@@ -5,8 +6,9 @@ import { Student } from './model.js';
 import { Faculty } from '../faculty/model.js';
 import { ApiError } from '../../utils/apiError.js';
 import { logger } from '../../utils/logger.js';
+import { createAuditLog } from '../../services/audit.service.js';
 
-export const importStudentsService = async (fileBuffer, facultyId, fileType) => {
+export const importStudentsService = async (fileBuffer, facultyId, fileType, actorId, actorRole, actorDepartment, actorDepartmentCode) => {
   const faculty = await Faculty.findById(facultyId);
   if (!faculty) {
     throw new ApiError(404, 'Faculty not found');
@@ -32,9 +34,11 @@ export const importStudentsService = async (fileBuffer, facultyId, fileType) => 
     errors: [],
   };
 
+  const isFacultyAdmin = actorRole === 'facultyAdmin';
+
   for (const record of records) {
     try {
-      const validationError = validateStudentRecord(record);
+      const validationError = validateStudentRecord(record, isFacultyAdmin);
       if (validationError) {
         results.failed++;
         results.errors.push({
@@ -42,6 +46,32 @@ export const importStudentsService = async (fileBuffer, facultyId, fileType) => 
           error: validationError,
         });
         continue;
+      }
+
+      let department = record.department;
+
+      if (!isFacultyAdmin && actorDepartmentCode) {
+        department = actorDepartmentCode;
+      }
+
+      if (isFacultyAdmin) {
+        const Department = mongoose.model('Department');
+        const deptExists = await Department.findOne({
+          code: record.department.toUpperCase(),
+          faculty: facultyId,
+        }).lean();
+
+        if (!deptExists) {
+          const depts = await Department.find({ faculty: facultyId }).select('code').lean();
+          const codes = depts.map(d => d.code).join(', ');
+          results.failed++;
+          results.errors.push({
+            row: record._row,
+            error: `Department "${record.department}" not found under ${faculty.code || faculty.name}. Available codes: ${codes}`,
+          });
+          continue;
+        }
+        department = deptExists.code;
       }
 
       const existing = await Student.findOne({
@@ -52,7 +82,7 @@ export const importStudentsService = async (fileBuffer, facultyId, fileType) => 
         await Student.findByIdAndUpdate(existing._id, {
           fullName: record.fullName,
           email: record.email.toLowerCase(),
-          department: record.department,
+          department,
           faculty: facultyId,
           level: record.level,
           isEligible: true,
@@ -63,7 +93,7 @@ export const importStudentsService = async (fileBuffer, facultyId, fileType) => 
           registrationNumber: record.registrationNumber.toUpperCase(),
           fullName: record.fullName,
           email: record.email.toLowerCase(),
-          department: record.department,
+          department,
           faculty: facultyId,
           level: record.level,
           isEligible: true,
@@ -79,6 +109,14 @@ export const importStudentsService = async (fileBuffer, facultyId, fileType) => 
     }
   }
 
+  createAuditLog({
+    actor: actorId,
+    action: 'import_students',
+    entityType: 'Student',
+    description: `Imported ${results.created} students (${results.updated} updated, ${results.failed} failed) for ${faculty.name}`,
+    faculty: facultyId,
+  });
+
   logger.info('Student import completed', {
     facultyId,
     total: results.total,
@@ -90,7 +128,7 @@ export const importStudentsService = async (fileBuffer, facultyId, fileType) => 
   return results;
 };
 
-export const batchCreateStudentsService = async (students, facultyId) => {
+export const batchCreateStudentsService = async (students, facultyId, actorId) => {
   const faculty = await Faculty.findById(facultyId);
   if (!faculty) {
     throw new ApiError(404, 'Faculty not found');
@@ -152,6 +190,14 @@ export const batchCreateStudentsService = async (students, facultyId) => {
     }
   }
 
+  createAuditLog({
+    actor: actorId,
+    action: 'batch_create_students',
+    entityType: 'Student',
+    description: `Batch created ${results.created} students (${results.updated} updated, ${results.failed} failed) for ${faculty.name}`,
+    faculty: facultyId,
+  });
+
   logger.info('Batch student creation completed', {
     facultyId,
     total: results.total,
@@ -211,7 +257,7 @@ export const updateStudentService = async (studentId, data, facultyFilter = null
   return student;
 };
 
-export const deleteStudentService = async (studentId, facultyFilter = null) => {
+export const deleteStudentService = async (studentId, facultyFilter = null, actorId) => {
   const filters = { _id: studentId };
   if (facultyFilter) filters.faculty = facultyFilter;
 
@@ -220,6 +266,15 @@ export const deleteStudentService = async (studentId, facultyFilter = null) => {
   if (!student) {
     throw new ApiError(404, 'Student not found');
   }
+
+  createAuditLog({
+    actor: actorId,
+    action: 'delete_student',
+    entityType: 'Student',
+    entityId: student._id,
+    description: `Deleted student: ${student.fullName} (${student.registrationNumber})`,
+    faculty: student.faculty,
+  });
 
   return { message: 'Student deleted successfully' };
 };
@@ -316,11 +371,11 @@ const normalizeRecord = (row) => {
   };
 };
 
-const validateStudentRecord = (record) => {
+const validateStudentRecord = (record, requireDepartment = true) => {
   if (!record.registrationNumber) return 'Registration number is required';
   if (!record.fullName) return 'Full name is required';
   if (!record.email) return 'Email is required';
-  if (!record.department) return 'Department is required';
+  if (requireDepartment && !record.department) return 'Department is required';
   if (!record.level) return 'Level is required';
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

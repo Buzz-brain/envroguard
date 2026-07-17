@@ -108,10 +108,27 @@ export interface Notification {
   type: string;
   title: string;
   message: string;
+  relatedEntityType?: string;
+  relatedEntityId?: string;
   relatedReport?: string;
   isRead: boolean;
   readAt?: string;
   metadata?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface AuditLog {
+  _id: string;
+  actor?: { _id: string; firstName?: string; lastName?: string; email?: string };
+  actorModel: string;
+  actorName: string;
+  action: string;
+  entityType: string;
+  entityId?: string;
+  description: string;
+  faculty?: string;
+  department?: string;
+  ipAddress?: string;
   createdAt: string;
 }
 

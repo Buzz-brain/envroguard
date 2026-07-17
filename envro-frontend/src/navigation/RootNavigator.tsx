@@ -1,14 +1,17 @@
-import React from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { navigationRef } from '../utils/navigation';
 import { createStackNavigator } from '@react-navigation/stack';
-import { View, ActivityIndicator } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { ThemeProvider, useColors } from '../contexts/ThemeContext';
+import SplashScreen from '../screens/launch/SplashScreen';
+import SessionScreen from '../screens/launch/SessionScreen';
+import OnboardingScreen from '../screens/launch/OnboardingScreen';
+import WelcomeRoleScreen from '../screens/launch/WelcomeRoleScreen';
+import { getItem, deleteItem } from '../utils/storage';
 
 // Auth screens
 import LandingScreen from '../screens/auth/LandingScreen';
-import RoleSelectScreen from '../screens/auth/RoleSelectScreen';
 import StudentLoginScreen from '../screens/auth/StudentLoginScreen';
 import AdminLoginScreen from '../screens/auth/AdminLoginScreen';
 import StudentRegisterScreen from '../screens/auth/StudentRegisterScreen';
@@ -23,18 +26,70 @@ import {
   EnvironmentalAdminTabs,
 } from './TabNavigator';
 
+type Phase = 'splash' | 'session' | 'app';
+
 const Stack = createStackNavigator();
 
 function AuthStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
       <Stack.Screen name="Landing" component={LandingScreen} />
-      <Stack.Screen name="RoleSelect" component={RoleSelectScreen} />
       <Stack.Screen name="StudentLogin" component={StudentLoginScreen} />
       <Stack.Screen name="StudentRegister" component={StudentRegisterScreen} />
       <Stack.Screen name="AdminLogin" component={AdminLoginScreen} />
       <Stack.Screen name="AdminRegister" component={AdminRegisterScreen} />
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+    </Stack.Navigator>
+  );
+}
+
+function AutoAuthScreen({ navigation }: any) {
+  const called = useRef(false);
+
+  useEffect(() => {
+    if (called.current) return;
+    called.current = true;
+
+    getItem('lastRole').then((role) => {
+      const target = role === 'student' ? 'StudentLogin' : 'AdminLogin';
+      navigation.replace('Auth', { screen: target, params: { autoRole: role } });
+    });
+  }, [navigation]);
+
+  return null;
+}
+
+function PreAuthStack() {
+  const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
+  const [lastRole, setLastRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const val = await getItem('hasCompletedOnboarding');
+        setOnboardingDone(val === 'true');
+        const role = await getItem('lastRole');
+        setLastRole(role);
+      } catch {
+        setOnboardingDone(false);
+      }
+    };
+    check();
+  }, []);
+
+  if (onboardingDone === null) return null;
+
+  const showOnboarding = !onboardingDone && !lastRole;
+
+  return (
+    <Stack.Navigator
+      screenOptions={{ headerShown: false }}
+      initialRouteName={showOnboarding ? 'Onboarding' : lastRole ? 'AutoAuth' : 'WelcomeRole'}
+    >
+      <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+      <Stack.Screen name="AutoAuth" component={AutoAuthScreen} />
+      <Stack.Screen name="WelcomeRole" component={WelcomeRoleScreen} />
+      <Stack.Screen name="Auth" component={AuthStack} />
     </Stack.Navigator>
   );
 }
@@ -51,15 +106,23 @@ function getTabForRole(role: string) {
 
 function AppContent() {
   const colors = useColors();
-
   const { isAuthenticated, isLoading, user } = useAuth();
+  const [phase, setPhase] = useState<Phase>('splash');
 
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
+  // SplashScreen handles its own timing via onComplete callback
+
+  useEffect(() => {
+    if (phase === 'session' && !isLoading) {
+      setPhase('app');
+    }
+  }, [phase, isLoading]);
+
+  if (phase === 'splash') {
+    return <SplashScreen onComplete={() => setPhase('session')} />;
+  }
+
+  if (phase === 'session') {
+    return <SessionScreen />;
   }
 
   return (
@@ -88,9 +151,7 @@ function AppContent() {
           <Stack.Screen name="Main" component={getTabForRole(user.role)} />
         </Stack.Navigator>
       ) : (
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="Auth" component={AuthStack} />
-        </Stack.Navigator>
+        <PreAuthStack />
       )}
     </NavigationContainer>
   );

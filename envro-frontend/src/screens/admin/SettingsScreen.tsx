@@ -21,8 +21,10 @@ import { useAuth } from '../../contexts/AuthContext';
 import { authApi } from '../../api/auth';
 import { facultiesApi } from '../../api/faculties';
 import { departmentsApi } from '../../api/departments';
+import { ToastService } from '../../services/ToastService';
 import { formatRole } from '../../utils/helpers';
 import { Button } from '../../components/ui/Button';
+import { getSettings, updateSettings, UserSettings } from '../../services/settings';
 
 export default function SettingsScreen() {
   const { colors, isDark, toggleTheme } = useThemeColors();
@@ -38,6 +40,20 @@ export default function SettingsScreen() {
   const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [changing, setChanging] = useState(false);
   const [pwError, setPwError] = useState<string | null>(null);
+  const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const s = await getSettings();
+      setUserSettings(s);
+    })();
+  }, []);
+
+  const toggleSetting = async (key: keyof UserSettings) => {
+    if (!userSettings) return;
+    const updated = await updateSettings({ [key]: !userSettings[key] });
+    setUserSettings(updated);
+  };
 
   const handleChangePassword = async () => {
     setPwError(null);
@@ -58,8 +74,10 @@ export default function SettingsScreen() {
         setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
+        ToastService.success('Password Changed', 'Your password has been updated successfully.');
       }
     } catch (err: any) {
+      ToastService.error('Error', err.response?.data?.message || 'Failed to change password');
       setPwError(err.response?.data?.message || 'Failed to change password');
     } finally { setChanging(false); }
   };
@@ -189,6 +207,65 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {/* ── Sound & Feedback ── */}
+        {userSettings && (
+          <View style={styles.settingsGroup}>
+            <Text style={styles.sectionLabel}>SOUND & FEEDBACK</Text>
+            <View style={styles.menuItem}>
+              <View style={[styles.menuIcon, { backgroundColor: colors.primaryBg }]}>
+                <Ionicons name="volume-high-outline" size={20} color={colors.primary} />
+              </View>
+              <Text style={styles.menuText}>Enable Sounds</Text>
+              <Switch
+                value={userSettings.enableSounds}
+                onValueChange={() => toggleSetting('enableSounds')}
+                trackColor={{ false: colors.border, true: colors.primaryLight + '80' }}
+                thumbColor={userSettings.enableSounds ? colors.primary : '#f4f3f4'}
+              />
+            </View>
+            {userSettings.enableSounds && (
+              <>
+                <View style={styles.menuItem}>
+                  <View style={[styles.menuIcon, { backgroundColor: colors.primaryBg }]}>
+                    <Ionicons name="notifications-outline" size={20} color={colors.primary} />
+                  </View>
+                  <Text style={styles.menuText}>Notification Sounds</Text>
+                  <Switch
+                    value={userSettings.notificationSounds}
+                    onValueChange={() => toggleSetting('notificationSounds')}
+                    trackColor={{ false: colors.border, true: colors.primaryLight + '80' }}
+                    thumbColor={userSettings.notificationSounds ? colors.primary : '#f4f3f4'}
+                  />
+                </View>
+                <View style={styles.menuItem}>
+                  <View style={[styles.menuIcon, { backgroundColor: colors.primaryBg }]}>
+                    <Ionicons name="chatbubble-ellipses-outline" size={20} color={colors.primary} />
+                  </View>
+                  <Text style={styles.menuText}>Toast Sounds</Text>
+                  <Switch
+                    value={userSettings.toastSounds}
+                    onValueChange={() => toggleSetting('toastSounds')}
+                    trackColor={{ false: colors.border, true: colors.primaryLight + '80' }}
+                    thumbColor={userSettings.toastSounds ? colors.primary : '#f4f3f4'}
+                  />
+                </View>
+              </>
+            )}
+            <View style={styles.menuItem}>
+              <View style={[styles.menuIcon, { backgroundColor: colors.primaryBg }]}>
+                <Ionicons name="phone-portrait-outline" size={20} color={colors.primary} />
+              </View>
+              <Text style={styles.menuText}>Vibration</Text>
+              <Switch
+                value={userSettings.vibration}
+                onValueChange={() => toggleSetting('vibration')}
+                trackColor={{ false: colors.border, true: colors.primaryLight + '80' }}
+                thumbColor={userSettings.vibration ? colors.primary : '#f4f3f4'}
+              />
+            </View>
+          </View>
+        )}
+
         {/* ── Sign Out ── */}
         <View style={styles.logoutSection}>
           <TouchableOpacity style={styles.logoutBtn} onPress={() => setShowLogoutModal(true)} activeOpacity={0.7}>
@@ -210,12 +287,12 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             </View>
 
-            {pwError && (
-              <View style={[styles.errorBox, { backgroundColor: colors.dangerLight }]}>
-                <Ionicons name="alert-circle" size={16} color={colors.danger} />
-                <Text style={[styles.errorText, { color: colors.danger }]}>{pwError}</Text>
-              </View>
-            )}
+{pwError ? (
+            <View style={styles.errorBox}>
+              <Ionicons name="alert-circle" size={18} color={colors.danger} />
+              <Text style={styles.errorText}>{pwError}</Text>
+            </View>
+          ) : null}
 
             <View style={{ marginBottom: spacing.md }}>
               <Text style={[typography.label, { color: colors.text, marginBottom: spacing.xs, fontWeight: '600' }]}>Current Password</Text>

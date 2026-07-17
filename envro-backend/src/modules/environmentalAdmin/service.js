@@ -7,8 +7,11 @@ import { HazardReport } from '../report/model.js';
 import { Faculty } from '../faculty/model.js';
 import { ApiError } from '../../utils/apiError.js';
 import { sendInviteEmail } from '../../services/email.service.js';
+import { createNotificationService } from '../notification/service.js';
+import { createAuditLog } from '../../services/audit.service.js';
+import { NOTIFICATION_TYPES } from '../../constants/hazard.js';
 
-export const createEnvironmentalAdminService = async (data) => {
+export const createEnvironmentalAdminService = async (data, actorId) => {
   const existing = await EnvironmentalAdmin.findOne({ email: data.email.toLowerCase() });
   if (existing) {
     throw new ApiError(409, 'Environmental admin with this email already exists');
@@ -19,8 +22,16 @@ export const createEnvironmentalAdminService = async (data) => {
     email: data.email.toLowerCase(),
   });
 
-  // Send invite email (non-blocking)
   sendInviteEmail(admin.email, admin.fullName);
+
+  createNotificationService({
+    recipientId: admin._id,
+    recipientModel: 'EnvironmentalAdmin',
+    type: NOTIFICATION_TYPES.ADMIN_CREATED,
+    title: 'Account Created',
+    message: `Your Environmental Admin account has been created. Please check your email to set your password.`,
+    actorId,
+  });
 
   return admin;
 };
@@ -40,7 +51,7 @@ export const getAllEnvironmentalAdminsService = async (query) => {
   return { admins, pagination: buildPaginationMeta(total, page, limit) };
 };
 
-export const updateEnvironmentalAdminService = async (adminId, data) => {
+export const updateEnvironmentalAdminService = async (adminId, data, actorId) => {
   if (data.email) data.email = data.email.toLowerCase();
 
   const admin = await EnvironmentalAdmin.findByIdAndUpdate(adminId, data, {
@@ -52,10 +63,19 @@ export const updateEnvironmentalAdminService = async (adminId, data) => {
     throw new ApiError(404, 'Environmental admin not found');
   }
 
+  createNotificationService({
+    recipientId: admin._id,
+    recipientModel: 'EnvironmentalAdmin',
+    type: NOTIFICATION_TYPES.ADMIN_UPDATED,
+    title: 'Account Updated',
+    message: 'Your account details have been updated.',
+    actorId,
+  });
+
   return admin;
 };
 
-export const toggleEnvironmentalAdminStatusService = async (adminId) => {
+export const toggleEnvironmentalAdminStatusService = async (adminId, actorId) => {
   const admin = await EnvironmentalAdmin.findById(adminId);
 
   if (!admin) {
@@ -65,6 +85,19 @@ export const toggleEnvironmentalAdminStatusService = async (adminId) => {
   admin.isActive = !admin.isActive;
   admin.refreshToken = null;
   await admin.save();
+
+  const actionType = admin.isActive ? NOTIFICATION_TYPES.ADMIN_UPDATED : NOTIFICATION_TYPES.ADMIN_DISABLED;
+
+  createNotificationService({
+    recipientId: admin._id,
+    recipientModel: 'EnvironmentalAdmin',
+    type: actionType,
+    title: admin.isActive ? 'Account Re-activated' : 'Account Disabled',
+    message: admin.isActive
+      ? 'Your account has been re-activated.'
+      : 'Your account has been disabled. Please contact the system administrator.',
+    actorId,
+  });
 
   return { isActive: admin.isActive };
 };

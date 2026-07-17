@@ -1,6 +1,7 @@
 import { asyncHandler, apiResponse, ApiError } from '../../utils/index.js';
 import * as reportService from './service.js';
 import { ROLES } from '../../constants/roles.js';
+import { getTimeline } from '../../services/timeline.service.js';
 
 export const createReport = asyncHandler(async (req, res) => {
   const report = await reportService.createReportService(
@@ -40,7 +41,7 @@ export const updateReportStatus = asyncHandler(async (req, res) => {
     req.body.status,
     req.body.note,
     req.user.id,
-    'EnvironmentalAdmin'
+    req.user.role === 'environmentalAdmin' ? 'EnvironmentalAdmin' : 'FacultyAdmin'
   );
 
   return apiResponse(res, 200, 'Report status updated successfully', report);
@@ -49,7 +50,8 @@ export const updateReportStatus = asyncHandler(async (req, res) => {
 export const assignReport = asyncHandler(async (req, res) => {
   const report = await reportService.assignReportService(
     req.params.id,
-    req.body.adminId
+    req.body.adminId,
+    req.user.id
   );
 
   return apiResponse(res, 200, 'Report assigned successfully', report);
@@ -64,8 +66,13 @@ export const getMyReports = asyncHandler(async (req, res) => {
 });
 
 export const deleteReport = asyncHandler(async (req, res) => {
-  const result = await reportService.deleteReportService(req.params.id);
+  const result = await reportService.deleteReportService(req.params.id, req.user.id);
   return apiResponse(res, 200, result.message);
+});
+
+export const getReportTimeline = asyncHandler(async (req, res) => {
+  const timeline = await getTimeline(req.params.id);
+  return apiResponse(res, 200, 'Timeline retrieved', timeline);
 });
 
 export const getReportStats = asyncHandler(async (req, res) => {

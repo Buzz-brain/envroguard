@@ -17,6 +17,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { DashboardSkeleton } from '../../components/ui/DashboardSkeleton';
 import { ErrorState } from '../../components/ui/ErrorState';
+import { useAutoRetry } from '../../hooks/useAutoRetry';
+import { getFriendlyErrorMessage } from '../../services/apiErrors';
 import { spacing, borderRadius, REPORT_STATUS, categoryColors, categoryIcons, statusColors, statusLabels } from '../../constants';
 import { useColors } from '../../contexts/ThemeContext';
 import { reportsApi } from '../../api/reports';
@@ -102,7 +104,7 @@ export default function DashboardScreen({ navigation }: any) {
       const { data } = await notificationsApi.getAll({ page: 1, limit: 30 });
       if (data.success) setNotifList(data.data);
     } catch (err: any) {
-      setNotifError(err.response?.data?.message || 'Failed to load notifications');
+      setNotifError(getFriendlyErrorMessage(err, 'notifications'));
     }
     finally { setNotifLoading(false); }
   }, []);
@@ -148,12 +150,13 @@ export default function DashboardScreen({ navigation }: any) {
         }
       }
     } catch (err: any) {
-      setStatsError(err.response?.data?.message || 'Failed to refresh dashboard');
+      setStatsError(getFriendlyErrorMessage(err, 'dashboard'));
     }
     finally { setLoading(false); setRefreshing(false); }
   }, [user]);
 
   useFocusEffect(useCallback(() => { fetchStats(); }, [fetchStats]));
+  useAutoRetry(fetchStats, !loading);
 
   useFocusEffect(useCallback(() => {
     (async () => {
@@ -181,14 +184,12 @@ export default function DashboardScreen({ navigation }: any) {
   const recentReports = stats.recentReports || [];
 
   return (
-    <>
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchStats(); }} />}
-    >
-      {/* ─── Hero Header ─── */}
-      <LinearGradient
+    <View style={{ flex: 1 }}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchStats(); }} />}
+      ><LinearGradient
         colors={['#059669', '#047857', '#065F46']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
@@ -223,7 +224,7 @@ export default function DashboardScreen({ navigation }: any) {
         )}
       </LinearGradient>
 
-      {statsError && (
+      {statsError ? (
         <View style={[styles.errorBanner, { backgroundColor: colors.dangerLight }]}>
           <Ionicons name="alert-circle" size={18} color={colors.danger} />
           <Text style={[styles.errorBannerText, { color: colors.danger }]}>{statsError}</Text>
@@ -231,7 +232,7 @@ export default function DashboardScreen({ navigation }: any) {
             <Ionicons name="close" size={18} color={colors.danger} />
           </TouchableOpacity>
         </View>
-      )}
+      ) : null}
 
       {/* ─── Premium Stat Cards ─── */}
       <View style={styles.statsGrid}>
@@ -344,22 +345,24 @@ export default function DashboardScreen({ navigation }: any) {
               Last {monthlyTrend.length} months{stats.reportsThisWeek !== undefined ? ` · This Week: ${stats.reportsThisWeek}` : ''}
             </Text>
           </View>
-          <View style={styles.barChart}>
-            {monthlyTrend.map((m, i) => {
-              const barH = (m.count / trendMax) * 140;
-              return (
-                <View key={i} style={styles.barCol}>
-                  <Text style={[styles.barValue, { color: colors.textTertiary }]}>{m.count}</Text>
-                  <View style={styles.barTrack}>
-                    <View style={[styles.barFill, { height: barH, backgroundColor: i === monthlyTrend.length - 1 ? '#2563EB' : '#059669' }]} />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={[styles.barChart, { width: Math.max(width - PADDING * 2, monthlyTrend.length * 48) }]}>
+              {monthlyTrend.map((m, i) => {
+                const barH = (m.count / trendMax) * 140;
+                return (
+                  <View key={i} style={styles.barCol}>
+                    <Text style={[styles.barValue, { color: colors.textTertiary }]}>{m.count}</Text>
+                    <View style={styles.barTrack}>
+                      <View style={[styles.barFill, { height: barH, backgroundColor: i === monthlyTrend.length - 1 ? '#2563EB' : '#059669' }]} />
+                    </View>
+                    <Text style={[styles.barLabel, { color: colors.textTertiary }]}>
+                      {MONTHS[m._id.month - 1]}
+                    </Text>
                   </View>
-                  <Text style={[styles.barLabel, { color: colors.textTertiary }]}>
-                    {MONTHS[m._id.month - 1]}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
+                );
+              })}
+            </View>
+          </ScrollView>
         </View>
       )}
 
@@ -467,10 +470,17 @@ export default function DashboardScreen({ navigation }: any) {
                 renderItem={({ item }) => (
                   <TouchableOpacity
                     style={[styles.notifItem, { backgroundColor: item.isRead ? 'transparent' : colors.primaryBg }]}
-                    activeOpacity={item.relatedReport ? 0.7 : 1}
-                    onPress={() => {
-                      if (item.relatedReport) {
-                        navigation.navigate('ReportDetail' as never, { reportId: item.relatedReport } as never);
+                    activeOpacity={item.relatedEntityId ? 0.7 : 1}
+                    onPress={async () => {
+                      if (!item.isRead) {
+                        try {
+                          await notificationsApi.markAsRead(item._id);
+                          setNotifList(prev => prev.map(n => n._id === item._id ? { ...n, isRead: true } : n));
+                          setUnreadCount(prev => Math.max(0, prev - 1));
+                        } catch {}
+                      }
+                      if (item.relatedEntityType === 'Report' && item.relatedEntityId) {
+                        navigation.navigate('ReportDetail' as never, { reportId: item.relatedEntityId } as never);
                         closeNotificationPanel();
                       }
                     }}
@@ -488,7 +498,7 @@ export default function DashboardScreen({ navigation }: any) {
           </Animated.View>
         </>
       )}
-    </>
+    </View>
   );
 }
 
@@ -512,7 +522,7 @@ const getStyles = (c: typeof import('../../constants/theme').lightColors) => Sty
   },
   errorBannerText: {
     flex: 1,
-    fontFamily: 'Poppins_500Medium',
+    fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: 13,
     lineHeight: 18,
   },
@@ -547,18 +557,18 @@ const getStyles = (c: typeof import('../../constants/theme').lightColors) => Sty
     borderColor: 'rgba(255,255,255,0.3)',
   },
   heroAvatarText: {
-    fontFamily: 'Poppins_700Bold',
+    fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: 17,
     color: '#FFF',
   },
   heroGreeting: {
-    fontFamily: 'Poppins_500Medium',
+    fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: 12,
     color: 'rgba(255,255,255,0.75)',
     letterSpacing: 0.3,
   },
   heroRole: {
-    fontFamily: 'Poppins_700Bold',
+    fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: 16,
     color: '#FFF',
     marginTop: 1,
@@ -585,7 +595,7 @@ const getStyles = (c: typeof import('../../constants/theme').lightColors) => Sty
     paddingHorizontal: 3,
   },
   bellBadgeText: {
-    fontFamily: 'Poppins_700Bold',
+    fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: 9,
     color: '#FFF',
   },
@@ -596,7 +606,7 @@ const getStyles = (c: typeof import('../../constants/theme').lightColors) => Sty
     marginTop: spacing.sm,
   },
   heroStatus: {
-    fontFamily: 'Poppins_400Regular',
+    fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: 12,
     color: 'rgba(255,255,255,0.7)',
     flex: 1,
@@ -633,13 +643,13 @@ const getStyles = (c: typeof import('../../constants/theme').lightColors) => Sty
     marginBottom: spacing.sm,
   },
   statNumber: {
-    fontFamily: 'Poppins_700Bold',
+    fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: 22,
     letterSpacing: -0.5,
     lineHeight: 28,
   },
   statLabel: {
-    fontFamily: 'Poppins_500Medium',
+    fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: 10,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
@@ -673,7 +683,7 @@ const getStyles = (c: typeof import('../../constants/theme').lightColors) => Sty
     }),
   },
   metaChipText: {
-    fontFamily: 'Poppins_500Medium',
+    fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: 12,
   },
 
@@ -690,9 +700,11 @@ const getStyles = (c: typeof import('../../constants/theme').lightColors) => Sty
   },
   chartHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     marginBottom: spacing.lg,
+    flexWrap: 'wrap',
+    gap: spacing.xs,
   },
   chartTitleRow: {
     flexDirection: 'row',
@@ -705,12 +717,12 @@ const getStyles = (c: typeof import('../../constants/theme').lightColors) => Sty
     borderRadius: 5,
   },
   chartTitle: {
-    fontFamily: 'Poppins_600SemiBold',
+    fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: 16,
     lineHeight: 22,
   },
   chartSubtitle: {
-    fontFamily: 'Poppins_500Medium',
+    fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: 12,
   },
 
@@ -727,7 +739,7 @@ const getStyles = (c: typeof import('../../constants/theme').lightColors) => Sty
     justifyContent: 'flex-end',
   },
   barValue: {
-    fontFamily: 'Poppins_600SemiBold',
+    fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: 10,
     marginBottom: 4,
   },
@@ -745,7 +757,7 @@ const getStyles = (c: typeof import('../../constants/theme').lightColors) => Sty
     minHeight: 4,
   },
   barLabel: {
-    fontFamily: 'Poppins_500Medium',
+    fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: 10,
     marginTop: 6,
   },
@@ -782,7 +794,7 @@ const getStyles = (c: typeof import('../../constants/theme').lightColors) => Sty
     marginLeft: spacing.sm,
   },
   catLabel: {
-    fontFamily: 'Poppins_500Medium',
+    fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: 12,
   },
   catBarTrack: {
@@ -798,7 +810,7 @@ const getStyles = (c: typeof import('../../constants/theme').lightColors) => Sty
     borderRadius: 4,
   },
   catValue: {
-    fontFamily: 'Poppins_700Bold',
+    fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: 13,
     width: 32,
     textAlign: 'right',
@@ -816,12 +828,12 @@ const getStyles = (c: typeof import('../../constants/theme').lightColors) => Sty
     marginBottom: spacing.md,
   },
   sectionTitle: {
-    fontFamily: 'Poppins_600SemiBold',
+    fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: 16,
     lineHeight: 22,
   },
   seeAll: {
-    fontFamily: 'Poppins_600SemiBold',
+    fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: 13,
   },
   timeline: {
@@ -869,7 +881,7 @@ const getStyles = (c: typeof import('../../constants/theme').lightColors) => Sty
     gap: spacing.sm,
   },
   timelineTitle: {
-    fontFamily: 'Poppins_600SemiBold',
+    fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: 14,
     lineHeight: 20,
     flex: 1,
@@ -883,7 +895,7 @@ const getStyles = (c: typeof import('../../constants/theme').lightColors) => Sty
     borderRadius: borderRadius.full,
   },
   timelineStatusText: {
-    fontFamily: 'Poppins_600SemiBold',
+    fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: 10,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
@@ -902,7 +914,7 @@ const getStyles = (c: typeof import('../../constants/theme').lightColors) => Sty
     justifyContent: 'center',
   },
   timelineMeta: {
-    fontFamily: 'Poppins_400Regular',
+    fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: 12,
   },
 
@@ -937,7 +949,7 @@ const getStyles = (c: typeof import('../../constants/theme').lightColors) => Sty
     paddingTop: Platform.OS === 'web' ? spacing.md : spacing.xxxl,
   },
   panelTitle: {
-    fontFamily: 'Poppins_700Bold',
+    fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: 18,
   },
   panelClose: {
@@ -960,7 +972,7 @@ const getStyles = (c: typeof import('../../constants/theme').lightColors) => Sty
     gap: spacing.sm,
   },
   panelEmptyText: {
-    fontFamily: 'Poppins_500Medium',
+    fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: 14,
     textAlign: 'center',
   },
@@ -974,7 +986,7 @@ const getStyles = (c: typeof import('../../constants/theme').lightColors) => Sty
     marginTop: spacing.md,
   },
   panelRetryText: {
-    fontFamily: 'Poppins_600SemiBold',
+    fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: 14,
     color: '#FFF',
   },
@@ -998,18 +1010,18 @@ const getStyles = (c: typeof import('../../constants/theme').lightColors) => Sty
     flex: 1,
   },
   notifTitle: {
-    fontFamily: 'Poppins_600SemiBold',
+    fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: 14,
     lineHeight: 20,
   },
   notifMessage: {
-    fontFamily: 'Poppins_400Regular',
+    fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: 13,
     lineHeight: 18,
     marginTop: 2,
   },
   notifTime: {
-    fontFamily: 'Poppins_400Regular',
+    fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: 11,
     marginTop: 4,
   },

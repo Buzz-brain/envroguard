@@ -11,22 +11,37 @@ const auditLogSchema = new mongoose.Schema(
       enum: ['StudentAccount', 'DepartmentAdmin', 'FacultyAdmin', 'EnvironmentalAdmin', 'System'],
       default: 'System',
     },
+    actorName: {
+      type: String,
+      default: '',
+    },
     action: {
       type: String,
       required: true,
       trim: true,
       index: true,
     },
-    resource: {
+    entityType: {
       type: String,
       required: true,
       trim: true,
     },
-    resourceId: {
+    entityId: {
       type: mongoose.Schema.Types.ObjectId,
     },
-    details: {
-      type: mongoose.Schema.Types.Mixed,
+    description: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    faculty: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Faculty',
+      default: null,
+    },
+    department: {
+      type: String,
+      default: null,
     },
     ipAddress: {
       type: String,
@@ -39,7 +54,8 @@ const auditLogSchema = new mongoose.Schema(
 );
 
 auditLogSchema.index({ createdAt: -1 });
-auditLogSchema.index({ resource: 1, createdAt: -1 });
+auditLogSchema.index({ faculty: 1, createdAt: -1 });
 auditLogSchema.index({ action: 1, createdAt: -1 });
+auditLogSchema.index({ entityType: 1, createdAt: -1 });
 
 export const AuditLog = mongoose.model('AuditLog', auditLogSchema);

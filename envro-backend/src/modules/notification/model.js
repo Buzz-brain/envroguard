@@ -29,9 +29,14 @@ const notificationSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-    relatedReport: {
+    relatedEntityType: {
+      type: String,
+      enum: ['Report', 'Faculty', 'Department', 'Admin', 'Announcement', null],
+      default: null,
+    },
+    relatedEntityId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'HazardReport',
+      default: null,
     },
     isRead: {
       type: Boolean,
@@ -50,5 +55,6 @@ const notificationSchema = new mongoose.Schema(
 
 notificationSchema.index({ recipient: 1, createdAt: -1 });
 notificationSchema.index({ isRead: 1, createdAt: -1 });
+notificationSchema.index({ type: 1, createdAt: -1 });
 
 export const Notification = mongoose.model('Notification', notificationSchema);

@@ -715,8 +715,16 @@ export const refreshTokenService = async (refreshToken) => {
 
 // ─── Change Password (authenticated) ─────────────────────────────────────
 
-export const changePasswordService = async (userId, currentPassword, newPassword) => {
-  const account = await StudentAccount.findById(userId).select('+password');
+const changePasswordModelMap = {
+  student: 'StudentAccount',
+  departmentAdmin: 'DepartmentAdmin',
+  facultyAdmin: 'FacultyAdmin',
+  environmentalAdmin: 'EnvironmentalAdmin',
+};
+
+export const changePasswordService = async (userId, role, currentPassword, newPassword) => {
+  const Model = mongoose.model(changePasswordModelMap[role]);
+  const account = await Model.findById(userId).select('+password');
 
   if (!account) {
     throw new ApiError(404, 'Account not found');

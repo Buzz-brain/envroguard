@@ -176,12 +176,12 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
 
-            {pwError && (
+            {pwError ? (
               <View style={[styles.errorBox, { backgroundColor: colors.dangerLight }]}>
                 <Ionicons name="alert-circle" size={16} color={colors.danger} />
                 <Text style={[styles.errorText, { color: colors.danger }]}>{pwError}</Text>
               </View>
-            )}
+            ) : null}
 
             {/* Current Password */}
             <View style={{ marginBottom: spacing.md }}>

@@ -59,6 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await setItem('accessToken', accessToken);
     await setItem('refreshToken', refreshToken);
     await setItem('user', JSON.stringify(userData));
+    await setItem('lastRole', userData.role);
     setUser(userData);
   }, []);
 
@@ -67,6 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await deleteItem('accessToken');
     await deleteItem('refreshToken');
     await deleteItem('user');
+    await deleteItem('lastRole');
     setUser(null);
   }, []);
 

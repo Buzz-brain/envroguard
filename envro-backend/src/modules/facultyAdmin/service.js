@@ -2,6 +2,9 @@ import { FacultyAdmin } from './model.js';
 import { Faculty } from '../faculty/model.js';
 import { ApiError } from '../../utils/apiError.js';
 import { sendInviteEmail } from '../../services/email.service.js';
+import { createNotificationService } from '../notification/service.js';
+import { createAuditLog } from '../../services/audit.service.js';
+import { NOTIFICATION_TYPES } from '../../constants/hazard.js';
 
 export const createFacultyAdminService = async (data, createdBy) => {
   const faculty = await Faculty.findById(data.faculty);
@@ -20,8 +23,16 @@ export const createFacultyAdminService = async (data, createdBy) => {
     createdBy,
   });
 
-  // Send invite email (non-blocking)
   sendInviteEmail(admin.email, admin.fullName);
+
+  createNotificationService({
+    recipientId: admin._id,
+    recipientModel: 'FacultyAdmin',
+    type: NOTIFICATION_TYPES.ADMIN_CREATED,
+    title: 'Account Created',
+    message: `Your Faculty Admin account for ${faculty.name} has been created. Check your email to set your password.`,
+    actorId: createdBy,
+  });
 
   return admin;
 };
@@ -65,7 +76,7 @@ export const getFacultyAdminByIdService = async (adminId) => {
   return admin;
 };
 
-export const updateFacultyAdminService = async (adminId, data) => {
+export const updateFacultyAdminService = async (adminId, data, actorId) => {
   if (data.email) data.email = data.email.toLowerCase();
 
   const admin = await FacultyAdmin.findByIdAndUpdate(adminId, data, {
@@ -77,10 +88,19 @@ export const updateFacultyAdminService = async (adminId, data) => {
     throw new ApiError(404, 'Faculty admin not found');
   }
 
+  createNotificationService({
+    recipientId: admin._id,
+    recipientModel: 'FacultyAdmin',
+    type: NOTIFICATION_TYPES.ADMIN_UPDATED,
+    title: 'Account Updated',
+    message: 'Your account details have been updated.',
+    actorId,
+  });
+
   return admin;
 };
 
-export const toggleFacultyAdminStatusService = async (adminId) => {
+export const toggleFacultyAdminStatusService = async (adminId, actorId) => {
   const admin = await FacultyAdmin.findById(adminId);
 
   if (!admin) {
@@ -90,6 +110,19 @@ export const toggleFacultyAdminStatusService = async (adminId) => {
   admin.isActive = !admin.isActive;
   admin.refreshToken = null;
   await admin.save();
+
+  const actionType = admin.isActive ? NOTIFICATION_TYPES.ADMIN_UPDATED : NOTIFICATION_TYPES.ADMIN_DISABLED;
+
+  createNotificationService({
+    recipientId: admin._id,
+    recipientModel: 'FacultyAdmin',
+    type: actionType,
+    title: admin.isActive ? 'Account Re-activated' : 'Account Disabled',
+    message: admin.isActive
+      ? 'Your account has been re-activated.'
+      : 'Your account has been disabled. Contact the system administrator.',
+    actorId,
+  });
 
   return { isActive: admin.isActive };
 };

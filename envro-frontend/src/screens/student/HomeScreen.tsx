@@ -8,6 +8,8 @@ import { SkeletonHome } from '../../components/ui/SkeletonHome';
 import { typography, spacing, borderRadius, HAZARD_CATEGORIES, categoryColors } from '../../constants';
 import { lightColors } from '../../constants/theme';
 import { useColors } from '../../contexts/ThemeContext';
+import { getFriendlyErrorMessage } from '../../services/apiErrors';
+import { useAutoRetry } from '../../hooks/useAutoRetry';
 import { reportsApi } from '../../api/reports';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDate } from '../../utils/helpers';
@@ -95,15 +97,19 @@ export default function StudentHome({ navigation }: any) {
   const [reports, setReports] = useState<HazardReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const fetchReports = useCallback(async () => {
     try {
+      setFetchError(null);
       const { data } = await reportsApi.getMyReports({ page: 1, limit: 5 });
       if (data.success) setReports(data.data);
-    } catch {} finally { setLoading(false); setRefreshing(false); }
+    } catch (err: any) { setFetchError(getFriendlyErrorMessage(err, 'dashboard')); } finally { setLoading(false); setRefreshing(false); }
   }, []);
 
   useFocusEffect(useCallback(() => { fetchReports(); }, [fetchReports]));
+
+  useAutoRetry(fetchReports, !loading);
 
   if (loading) return <SkeletonHome />;
 

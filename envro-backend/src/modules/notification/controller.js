@@ -1,14 +1,7 @@
 import { asyncHandler, apiResponse } from '../../utils/index.js';
 import * as notificationService from './service.js';
 
-const roleToModelMap = {
-  student: 'StudentAccount',
-  departmentAdmin: 'DepartmentAdmin',
-  facultyAdmin: 'FacultyAdmin',
-  environmentalAdmin: 'EnvironmentalAdmin',
-};
-
-const getRecipientModel = (role) => roleToModelMap[role] || 'StudentAccount';
+const getRecipientModel = (role) => notificationService.getRecipientModel(role);
 
 export const getNotifications = asyncHandler(async (req, res) => {
   const result = await notificationService.getNotificationsService(
@@ -39,11 +32,7 @@ export const markAllAsRead = asyncHandler(async (req, res) => {
     getRecipientModel(req.user.role)
   );
 
-  return apiResponse(
-    res,
-    200,
-    `${result.markedCount} notifications marked as read`
-  );
+  return apiResponse(res, 200, `${result.markedCount} notifications marked as read`);
 });
 
 export const deleteNotification = asyncHandler(async (req, res) => {
