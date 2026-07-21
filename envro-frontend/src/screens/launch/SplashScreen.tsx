@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Image, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { spacing, shadows, typography } from '../../constants';
+import { wakeUpServer } from '../../api/client';
 
 const DASH_COLOR = '#059669';
 
@@ -26,6 +27,7 @@ export default function SplashScreen({ onComplete }: { onComplete: () => void })
   const dash3 = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    wakeUpServer();
     Animated.sequence([
       Animated.timing(leafOpacity, { toValue: 1, duration: 800, useNativeDriver: true }),
       Animated.parallel([

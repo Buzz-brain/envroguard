@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { getItem, setItem, deleteItem } from '../utils/storage';
-import { onSessionExpired, resetSessionState } from '../api/client';
+import { onSessionExpired, resetSessionState, wakeUpServer } from '../api/client';
 import { authApi } from '../api/auth';
 import type { User } from '../types';
 
@@ -30,6 +30,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const loadStoredAuth = async () => {
+    wakeUpServer();
     try {
       const token = await getItem('accessToken');
       const storedUser = await getItem('user');

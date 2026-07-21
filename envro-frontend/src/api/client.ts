@@ -21,7 +21,7 @@ export function resetSessionState() {
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 15000,
+  timeout: 60000,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -41,15 +41,21 @@ api.interceptors.response.use(
     const originalRequest = error.config;
     const data = error.response?.data;
 
+    if (!error.response && !originalRequest._retry && originalRequest.method !== 'get') {
+      originalRequest._retry = true;
+      await new Promise(r => setTimeout(r, 2000));
+      return api(originalRequest);
+    }
+
     if (data?.errors?.length) {
       error.userMessage = data.errors[0].message;
     } else if (data?.message) {
       error.userMessage = data.message;
     } else if (!error.response) {
       if (error.code === 'ECONNABORTED') {
-        error.userMessage = 'The request is taking longer than expected. Please check your connection and try again.';
+        error.userMessage = 'Server is waking up. Please wait a moment and try again.';
       } else {
-        error.userMessage = 'No internet connection. Please check your connection and try again.';
+        error.userMessage = 'Unable to reach the server. Check your internet connection.';
       }
     } else if (error.response?.status >= 500) {
       error.userMessage = 'Something went wrong on our end. Please try again later.';
@@ -88,5 +94,20 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+let wakePromise: Promise<void> | null = null;
+
+function getBaseUrl() {
+  return API_BASE_URL.replace('/api/v1', '');
+}
+
+export function wakeUpServer() {
+  if (!wakePromise) {
+    wakePromise = axios.get(`${getBaseUrl()}/health`, { timeout: 90000 })
+      .catch(() => {})
+      .then(() => { wakePromise = null; });
+  }
+  return wakePromise;
+}
 
 export default api;
