@@ -29,5 +29,5 @@ React Native (Expo SDK 56) mobile app for environmental hazard reporting in scho
 
 ## API
 - Base URL: `http://192.168.0.101:5000/api/v1` (configured in `src/constants/index.ts`)
-- Auth: Bearer token via `expo-secure-store`
+- Auth: Bearer token via `@react-native-async-storage/async-storage`
 - Auto-refresh on 401

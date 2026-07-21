@@ -1,0 +1,27 @@
+Option 1 — Test login fix only (Expo Go)
+npx expo start
+Scan the QR code with Expo Go. If the push notification error blocks the app, we can disable that hook temporarily.
+
+
+Option 2 — Full dev build (recommended)
+npx expo install expo-dev-client
+npx expo run:android
+This requires a USB-connected Android device or emulator with Android Studio set up. It builds a dev client with all native modules working.
+
+
+Option 3 — Cloud dev build (no Android Studio)
+npm install -g eas-cli
+eas login
+eas build --profile development --platform android
+This builds in the cloud and gives you a downloadable APK.
+Do you have Android Studio set up, or would you prefer the cloud build?
+
+
+Option 4
+eas build --platform android --profile production
+Make sure you have an eas.json in your project root. If you don't, run:
+eas build:configure
+This generates the config. Then the production build command above builds a signed APK/AAB ready for release.
+
+Option 5
+npx eas build -p android --profile preview

@@ -23,22 +23,22 @@
       "adaptiveIcon": {
         "backgroundColor": "#059669",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
-      ]
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.buzzbrain.envroguard"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-secure-store",
       "expo-image-picker",
       "expo-location",
       [
@@ -47,6 +47,11 @@
           "color": "#059669"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "badeb40f-d509-4d0f-8bc3-f545472d1e73"
+      }
+    }
   }
 }
