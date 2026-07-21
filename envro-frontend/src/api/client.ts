@@ -41,8 +41,8 @@ api.interceptors.response.use(
     const originalRequest = error.config;
     const data = error.response?.data;
 
-    if (!error.response && !originalRequest._retry && originalRequest.method !== 'get') {
-      originalRequest._retry = true;
+    if (!error.response && !originalRequest._wakeRetry) {
+      originalRequest._wakeRetry = true;
       await new Promise(r => setTimeout(r, 2000));
       return api(originalRequest);
     }

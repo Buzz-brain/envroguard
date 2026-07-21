@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator, StyleSheet, Text, Image } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
 import Toast, { BaseToastProps } from 'react-native-toast-message';
 import { Ionicons } from '@expo/vector-icons';
@@ -94,12 +95,14 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <AuthProvider>
-        <NetworkProvider>
-          <AppContent />
-        </NetworkProvider>
-        <StatusBar style="dark" />
-      </AuthProvider>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <NetworkProvider>
+            <AppContent />
+          </NetworkProvider>
+          <StatusBar style="dark" />
+        </AuthProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
