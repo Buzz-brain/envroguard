@@ -6,11 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "splash": {
-      "backgroundColor": "#059669",
-      "resizeMode": "contain",
-      "image": "./assets/splash-icon.png"
-    },
+
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
@@ -21,7 +17,7 @@
     },
     "android": {
       "adaptiveIcon": {
-"backgroundColor": "#FFFFFF",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
@@ -50,8 +46,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "badeb40f-d509-4d0f-8bc3-f545472d1e73"
+        "projectId": "f982982d-8607-4846-a0d0-c80283f8bf6f"
       }
-    }
+    },
+    "owner": "buzzbrain1"
   }
 }
