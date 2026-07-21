@@ -32,8 +32,10 @@ export const REPORT_PRIORITY = {
 
 import { Platform } from 'react-native';
 
-const API_HOST = Platform.OS === 'web' ? 'localhost' : '192.168.0.101';
-const FALLBACK_API_BASE_URL = `http://${API_HOST}:5000/api/v1`;
+const FALLBACK_API_BASE_URL = Platform.select({
+  web: 'http://localhost:5000/api/v1',
+  default: 'https://envroguard.onrender.com/api/v1',
+});
 
 declare const process: {
   env: { EXPO_PUBLIC_API_URL?: string };

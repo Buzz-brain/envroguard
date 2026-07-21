@@ -324,7 +324,6 @@ export default function StudentsScreen() {
           {(isDeptAdmin || isFacultyAdmin) && <Button title="Import" onPress={handleImport} variant="outline" size="sm" loading={importing} />}
         </View>
       </View>
-
       <View style={styles.searchContainer}>
         <Ionicons name="search" size={20} color={colors.textTertiary} />
         <TextInput
@@ -340,7 +339,6 @@ export default function StudentsScreen() {
           </TouchableOpacity>
         )}
       </View>
-
       <FlatList
         data={students}
         keyExtractor={(item) => item._id}
@@ -378,7 +376,6 @@ export default function StudentsScreen() {
           </TouchableOpacity>
         )}
       />
-
       {/* Import Instruction Modal */}
       <Modal visible={importModalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
@@ -481,7 +478,6 @@ export default function StudentsScreen() {
           </ScrollView>
         </View>
       </Modal>
-
       {/* Student Detail Modal */}
       <Modal visible={!!selectedStudent} transparent animationType="slide">
         <View style={styles.modalOverlay}>
@@ -589,7 +585,6 @@ export default function StudentsScreen() {
           </ScrollView>
         </View>
       </Modal>
-
       {/* Batch Entry Modal */}
       <Modal visible={batchModalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
@@ -726,7 +721,6 @@ export default function StudentsScreen() {
           </ScrollView>
         </View>
       </Modal>
-
       {/* Delete Confirmation Modal */}
       <Modal visible={!!confirmDelete} animationType="fade" transparent onRequestClose={() => { setConfirmDelete(null); setDeleteError(''); }}>
         <Pressable style={styles.confirmOverlay} onPress={() => { setConfirmDelete(null); setDeleteError(''); }}>
