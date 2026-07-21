@@ -33,6 +33,7 @@ export default function FacultiesScreen() {
   const { user } = useAuth();
   const [faculties, setFaculties] = useState<Faculty[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editFaculty, setEditFaculty] = useState<Faculty | null>(null);
@@ -79,7 +80,7 @@ export default function FacultiesScreen() {
         }
       }
     } catch (err: any) { setFetchError(getFriendlyErrorMessage(err, 'faculties')); }
-    finally { setLoading(false); setRefreshing(false); }
+    finally { setLoading(false); setHasLoaded(true); setRefreshing(false); }
   }, [user, isFacultyScoped]);
 
   useFocusEffect(useCallback(() => { fetchFaculties(); }, [fetchFaculties]));
@@ -264,7 +265,7 @@ export default function FacultiesScreen() {
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchFaculties(); }} />}
         ListEmptyComponent={
-          <EmptyState icon="business-outline" title="No Faculties" message="Create your first faculty." />
+          hasLoaded ? <EmptyState icon="business-outline" title="No Faculties" message="Create your first faculty." /> : null
         }
         renderItem={({ item }) => {
           const isExpanded = expandedFaculty === item._id;

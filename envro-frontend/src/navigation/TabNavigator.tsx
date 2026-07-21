@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../contexts/ThemeContext';
 import { typography, spacing } from '../constants';
@@ -149,13 +150,14 @@ function reportIcon(size: number, color: string) {
 
 export function StudentTabs() {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textTertiary,
-        tabBarStyle: { borderTopColor: colors.borderLight, paddingBottom: 4, height: 56 },
+        tabBarStyle: { borderTopColor: colors.borderLight, paddingBottom: insets.bottom || 4, height: 56 + (insets.bottom || 0) },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' as const },
       }}
     >
@@ -175,13 +177,14 @@ export function StudentTabs() {
 
 export function DepartmentAdminTabs() {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textTertiary,
-        tabBarStyle: { borderTopColor: colors.borderLight, paddingBottom: 4, height: 56 },
+        tabBarStyle: { borderTopColor: colors.borderLight, paddingBottom: insets.bottom || 4, height: 56 + (insets.bottom || 0) },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' as const },
       }}
     >
@@ -199,13 +202,14 @@ export function DepartmentAdminTabs() {
 
 export function FacultyAdminTabs() {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textTertiary,
-        tabBarStyle: { borderTopColor: colors.borderLight, paddingBottom: 4, height: 56 },
+        tabBarStyle: { borderTopColor: colors.borderLight, paddingBottom: insets.bottom || 4, height: 56 + (insets.bottom || 0) },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' as const },
       }}
     >
@@ -227,13 +231,14 @@ export function FacultyAdminTabs() {
 
 export function EnvironmentalAdminTabs() {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textTertiary,
-        tabBarStyle: { borderTopColor: colors.borderLight, paddingBottom: 4, height: 56 },
+        tabBarStyle: { borderTopColor: colors.borderLight, paddingBottom: insets.bottom || 4, height: 56 + (insets.bottom || 0) },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' as const },
       }}
     >

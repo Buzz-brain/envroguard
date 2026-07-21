@@ -42,6 +42,7 @@ export default function ReportsScreen({ navigation, route }: any) {
   const styles = getStyles(colors);
   const [reports, setReports] = useState<HazardReport[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -73,7 +74,7 @@ export default function ReportsScreen({ navigation, route }: any) {
         if (!append) setTotalReports(data.meta?.pagination?.total ?? data.data.length);
       }
     } catch (err: any) { setFetchError(getFriendlyErrorMessage(err, 'reports')); }
-    finally { setLoading(false); setRefreshing(false); setLoadingMore(false); }
+    finally { setLoading(false); setHasLoaded(true); setRefreshing(false); setLoadingMore(false); }
   }, [statusFilter, debouncedSearch, categoryFilter]);
 
   const fetchStats = useCallback(async () => {
@@ -262,12 +263,14 @@ export default function ReportsScreen({ navigation, route }: any) {
           </View>
         ) : null}
         ListEmptyComponent={
-          <EmptyState
-            icon="document-text-outline"
-            title="No Reports Found"
-            message={search || statusFilter || categoryFilter ? 'Try adjusting your filters or search query.' : 'No reports have been submitted yet.'}
-            hint="Pull down to refresh"
-          />
+          hasLoaded ? (
+            <EmptyState
+              icon="document-text-outline"
+              title="No Reports Found"
+              message={search || statusFilter || categoryFilter ? 'Try adjusting your filters or search query.' : 'No reports have been submitted yet.'}
+              hint="Pull down to refresh"
+            />
+          ) : null
         }
         renderItem={({ item }) => {
           const catColor = cc[item.category] || '#6B7280';

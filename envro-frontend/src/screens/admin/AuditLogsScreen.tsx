@@ -63,6 +63,7 @@ export default function AuditLogsScreen() {
   const styles = getStyles(colors);
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -94,13 +95,14 @@ export default function AuditLogsScreen() {
         setPage(pageNum);
       }
     } catch (err: any) { setFetchError(getFriendlyErrorMessage(err, 'audit')); }
-    finally { setLoading(false); setRefreshing(false); setLoadingMore(false); }
+    finally { setLoading(false); setHasLoaded(true); setRefreshing(false); setLoadingMore(false); }
   }, [buildParams, filters]);
 
   const applyFilters = () => {
     setActiveFilters(countActiveFilters(filters));
     setShowFilters(false);
     setLoading(true);
+    setHasLoaded(false);
     setPage(1);
     setHasMore(true);
     fetchLogs(1);
@@ -108,6 +110,7 @@ export default function AuditLogsScreen() {
 
   useFocusEffect(useCallback(() => {
     setLoading(true);
+    setHasLoaded(false);
     setPage(1);
     setHasMore(true);
     fetchLogs(1);
@@ -147,7 +150,7 @@ export default function AuditLogsScreen() {
         onEndReachedThreshold={0.3}
         ListFooterComponent={loadingMore ? <View style={{ padding: spacing.lg, alignItems: 'center' }}><Text style={[typography.caption, { color: colors.textTertiary }]}>Loading more...</Text></View> : null}
         ListEmptyComponent={
-          <EmptyState icon="document-text-outline" title="No Activity" message="No audit log entries yet" />
+          hasLoaded ? <EmptyState icon="document-text-outline" title="No Activity" message="No audit log entries yet" /> : null
         }
         renderItem={({ item }) => (
           <View style={styles.logItem}>

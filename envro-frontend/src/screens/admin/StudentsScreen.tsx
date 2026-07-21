@@ -54,6 +54,7 @@ export default function StudentsScreen() {
   const isFacultyAdmin = user?.role === 'facultyAdmin';
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -109,11 +110,12 @@ export default function StudentsScreen() {
         setPage(pageNum);
       }
     } catch (err: any) { setFetchError(getFriendlyErrorMessage(err, 'students')); }
-    finally { setLoading(false); setRefreshing(false); setLoadingMore(false); }
+    finally { setLoading(false); setHasLoaded(true); setRefreshing(false); setLoadingMore(false); }
   }, [debouncedSearch]);
 
   useFocusEffect(useCallback(() => {
     setLoading(true);
+    setHasLoaded(false);
     setPage(1);
     setHasMore(true);
     fetchStudents(1);
@@ -348,7 +350,7 @@ export default function StudentsScreen() {
         onEndReachedThreshold={0.3}
         ListFooterComponent={loadingMore ? <View style={{ padding: spacing.lg, alignItems: 'center' }}><Text style={[typography.caption, { color: colors.textTertiary }]}>Loading more...</Text></View> : null}
         ListEmptyComponent={
-          <EmptyState icon="people-outline" title="No Students" message="Import students or add them manually." hint="Pull down to refresh" />
+          hasLoaded ? <EmptyState icon="people-outline" title="No Students" message="Import students or add them manually." hint="Pull down to refresh" /> : null
         }
         renderItem={({ item }) => (
           <TouchableOpacity onPress={() => handleViewDetail(item)}>

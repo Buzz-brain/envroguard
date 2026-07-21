@@ -44,6 +44,7 @@ export default function AdminsScreen() {
   const [faculties, setFaculties] = useState<Faculty[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [name, setName] = useState('');
@@ -106,7 +107,7 @@ export default function AdminsScreen() {
     } catch (err: any) {
       if (!append) setFetchError(getFriendlyErrorMessage(err, 'admins'));
     }
-    finally { setLoading(false); setRefreshing(false); setLoadingMore(false); }
+    finally { setLoading(false); setHasLoaded(true); setRefreshing(false); setLoadingMore(false); }
   }, [activeTab]);
 
   useFocusEffect(useCallback(() => {
@@ -338,7 +339,9 @@ export default function AdminsScreen() {
           </View>
         ) : null}
         ListEmptyComponent={
-          <EmptyState icon="shield-outline" title="No Admins" message={`No ${activeTab === 'environmentalAdmin' ? 'environmental' : activeTab === 'facultyAdmin' ? 'faculty' : 'department'} admins yet.`} />
+          hasLoaded ? (
+            <EmptyState icon="shield-outline" title="No Admins" message={`No ${activeTab === 'environmentalAdmin' ? 'environmental' : activeTab === 'facultyAdmin' ? 'faculty' : 'department'} admins yet.`} />
+          ) : null
         }
         renderItem={({ item }) => {
           return (
