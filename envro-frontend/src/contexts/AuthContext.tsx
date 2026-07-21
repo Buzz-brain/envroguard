@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { getItem, setItem, deleteItem } from '../utils/storage';
-import { onSessionExpired } from '../api/client';
+import { onSessionExpired, resetSessionState } from '../api/client';
 import { authApi } from '../api/auth';
 import type { User } from '../types';
 
@@ -56,6 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const login = useCallback(async (userData: User, accessToken: string, refreshToken: string) => {
+    resetSessionState();
     await setItem('accessToken', accessToken);
     await setItem('refreshToken', refreshToken);
     await setItem('user', JSON.stringify(userData));
