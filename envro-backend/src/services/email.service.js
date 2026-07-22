@@ -1,5 +1,27 @@
-import { transporter } from '../config/email.js';
+import { BREVO_API_KEY, EMAIL_FROM } from '../config/email.js';
 import { logger } from '../utils/logger.js';
+
+async function sendEmail({ to, subject, html }) {
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'accept': 'application/json',
+      'content-type': 'application/json',
+      'api-key': BREVO_API_KEY,
+    },
+    body: JSON.stringify({
+      sender: { name: 'EnviroGuard', email: EMAIL_FROM.replace(/^.*<(.+)>$/, '$1') },
+      to: [{ email: to }],
+      subject,
+      htmlContent: html,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Brevo API ${res.status}: ${err}`);
+  }
+}
 
 const OTP_EMAIL_TEMPLATE = (otp, purpose) => `
 <!DOCTYPE html>
@@ -13,14 +35,12 @@ const OTP_EMAIL_TEMPLATE = (otp, purpose) => `
     <tr>
       <td align="center">
         <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-          <!-- Header -->
           <tr>
             <td style="background-color: #2d6a4f; padding: 30px; text-align: center;">
               <h1 style="color: #ffffff; margin: 0; font-size: 24px;">EnviroGuard</h1>
               <p style="color: #b7e4c7; margin: 8px 0 0; font-size: 14px;">Environmental Hazard Alert System</p>
             </td>
           </tr>
-          <!-- Body -->
           <tr>
             <td style="padding: 40px 30px;">
               <h2 style="color: #333333; margin: 0 0 16px; font-size: 20px;">
@@ -29,7 +49,6 @@ const OTP_EMAIL_TEMPLATE = (otp, purpose) => `
               <p style="color: #666666; font-size: 16px; line-height: 1.6; margin: 0 0 24px;">
                 Use the OTP below to ${purpose === 'registration' ? 'verify your identity and create your account' : 'reset your password'}. This code expires in <strong>10 minutes</strong>.
               </p>
-              <!-- OTP -->
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="background-color: #f0faf4; border: 2px dashed #2d6a4f; border-radius: 8px; text-align: center; padding: 20px;">
@@ -42,7 +61,6 @@ const OTP_EMAIL_TEMPLATE = (otp, purpose) => `
               </p>
             </td>
           </tr>
-          <!-- Footer -->
           <tr>
             <td style="background-color: #f8f9fa; padding: 20px 30px; text-align: center; border-top: 1px solid #e9ecef;">
               <p style="color: #999999; font-size: 12px; margin: 0;">
@@ -60,8 +78,7 @@ const OTP_EMAIL_TEMPLATE = (otp, purpose) => `
 
 export const sendOTPEmail = async (to, otp, purpose = 'registration') => {
   try {
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM,
+    await sendEmail({
       to,
       subject: `EnviroGuard - ${purpose === 'registration' ? 'Registration' : 'Password Reset'} OTP`,
       html: OTP_EMAIL_TEMPLATE(otp, purpose),
@@ -90,14 +107,12 @@ const INVITE_EMAIL_TEMPLATE = (name) => `
     <tr>
       <td align="center">
         <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-          <!-- Header -->
           <tr>
             <td style="background-color: #2d6a4f; padding: 30px; text-align: center;">
               <h1 style="color: #ffffff; margin: 0; font-size: 24px;">EnviroGuard</h1>
               <p style="color: #b7e4c7; margin: 8px 0 0; font-size: 14px;">Environmental Hazard Alert System</p>
             </td>
           </tr>
-          <!-- Body -->
           <tr>
             <td style="padding: 40px 30px;">
               <h2 style="color: #333333; margin: 0 0 16px; font-size: 20px;">You've been added as an Admin!</h2>
@@ -128,7 +143,6 @@ const INVITE_EMAIL_TEMPLATE = (name) => `
               </p>
             </td>
           </tr>
-          <!-- Footer -->
           <tr>
             <td style="background-color: #f8f9fa; padding: 20px 30px; text-align: center; border-top: 1px solid #e9ecef;">
               <p style="color: #999999; font-size: 12px; margin: 0;">
@@ -146,8 +160,7 @@ const INVITE_EMAIL_TEMPLATE = (name) => `
 
 export const sendInviteEmail = async (to, name) => {
   try {
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM,
+    await sendEmail({
       to,
       subject: 'EnviroGuard - You\'ve been added as an Admin',
       html: INVITE_EMAIL_TEMPLATE(name),
