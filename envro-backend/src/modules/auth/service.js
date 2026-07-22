@@ -249,12 +249,14 @@ export const adminRegistrationOTPService = async (email) => {
     expiresAt,
   });
 
-  await sendOTPEmail(normalizedEmail, otp, 'registration');
+  const emailSent = await sendOTPEmail(normalizedEmail, otp, 'registration');
 
-  logger.info('Admin registration OTP sent', { email: normalizedEmail });
+  logger.info('Admin registration OTP generated', { email: normalizedEmail, emailSent });
 
   return {
-    message: `OTP sent to your email (${maskEmail(normalizedEmail)})`,
+    message: emailSent
+      ? `OTP sent to your email (${maskEmail(normalizedEmail)})`
+      : `OTP generated. Email delivery may be delayed. Check your inbox or try again shortly.`,
     expiresAt,
   };
 };

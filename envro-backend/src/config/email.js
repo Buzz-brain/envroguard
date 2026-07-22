@@ -9,6 +9,9 @@ export const transporter = nodemailer.createTransport({
     user: config.email.user,
     pass: config.email.password,
   },
+  connectionTimeout: 10000,
+  greetingTimeout: 5000,
+  socketTimeout: 10000,
 });
 
 export const verifyEmailConnection = async () => {

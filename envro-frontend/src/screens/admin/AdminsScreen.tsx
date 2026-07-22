@@ -8,6 +8,7 @@ import {
   Pressable,
   RefreshControl,
   Modal,
+  ScrollView,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
@@ -83,7 +84,7 @@ export default function AdminsScreen() {
   }, []);
 
   const fetchAdmins = useCallback(async (pageNum = 1, append = false) => {
-    if (!append) setFetchError('');
+    if (!append) { setFetchError(''); setLoading(true); }
     try {
       const params = { page: pageNum, limit: PAGE_SIZE };
       let data: any;
@@ -378,7 +379,7 @@ export default function AdminsScreen() {
       {/* Create Admin Modal */}
       <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => { setModalVisible(false); setCreateError(''); }}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, justifyContent: 'flex-end' }}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, justifyContent: 'flex-end' }}>
             <Pressable style={styles.modalContent} onPress={e => e.stopPropagation()}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>
@@ -388,6 +389,7 @@ export default function AdminsScreen() {
                   <Ionicons name="close" size={24} color={colors.text} />
                 </TouchableOpacity>
               </View>
+              <ScrollView keyboardShouldPersistTaps="handled" bounces={false}>
               {createError ? (
                 <View style={[styles.errorBox, { backgroundColor: colors.dangerLight }]}>
                   <Text style={[styles.errorText, { color: colors.danger }]}>{createError}</Text>
@@ -459,6 +461,7 @@ export default function AdminsScreen() {
                 </View>
               )}
               <Button title={editTarget ? 'Save Changes' : 'Create Admin'} onPress={handleCreate} loading={saving} size="lg" />
+              </ScrollView>
             </Pressable>
           </KeyboardAvoidingView>
         </Pressable>
@@ -467,7 +470,7 @@ export default function AdminsScreen() {
       {/* Quick Create Department Modal */}
       <Modal visible={quickDeptVisible} animationType="slide" transparent onRequestClose={() => setQuickDeptVisible(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => { setQuickDeptVisible(false); setQuickDeptError(''); }}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, justifyContent: 'flex-end' }}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, justifyContent: 'flex-end' }}>
             <Pressable style={styles.modalContent} onPress={e => e.stopPropagation()}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Quick Create Department</Text>
@@ -475,6 +478,7 @@ export default function AdminsScreen() {
                   <Ionicons name="close" size={24} color={colors.text} />
                 </TouchableOpacity>
               </View>
+              <ScrollView keyboardShouldPersistTaps="handled" bounces={false}>
               {quickDeptError ? (
                 <View style={[styles.errorBox, { backgroundColor: colors.dangerLight }]}>
                   <Text style={[styles.errorText, { color: colors.danger }]}>{quickDeptError}</Text>
@@ -486,6 +490,7 @@ export default function AdminsScreen() {
                 Will be created under the selected faculty. Full management available in Faculties page.
               </Text>
               <Button title="Create" onPress={handleQuickCreateDept} loading={quickDeptSaving} size="lg" />
+              </ScrollView>
             </Pressable>
           </KeyboardAvoidingView>
         </Pressable>

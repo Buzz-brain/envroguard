@@ -74,7 +74,7 @@ export const sendOTPEmail = async (to, otp, purpose = 'registration') => {
     if (process.env.NODE_ENV === 'development') {
       logger.warn(`[DEV FALLBACK] OTP for ${to}: ${otp}`);
     }
-    throw new Error('Failed to send OTP email. Please try again later.');
+    return false;
   }
 };
 

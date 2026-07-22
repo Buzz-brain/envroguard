@@ -15,6 +15,9 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
+// ─── Trust Proxy (required for rate-limiter behind Render/Heroku) ────────
+app.set('trust proxy', 1);
+
 // ─── Security & Middleware ─────────────────────────────────────────────
 app.use(helmet());
 

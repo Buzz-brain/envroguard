@@ -6,8 +6,11 @@ import {
   FlatList,
   TouchableOpacity,
   Pressable,
+  ScrollView,
   RefreshControl,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { lightColors } from '../../constants/theme';
@@ -374,47 +377,55 @@ export default function FacultiesScreen() {
 
       {/* Create/Edit Faculty Modal */}
       <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{editFaculty ? 'Edit Faculty' : 'New Faculty'}</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Ionicons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-            {facultyError ? (
-              <View style={[styles.errorBox, { backgroundColor: colors.dangerLight }]}>
-                <Text style={[styles.errorText, { color: colors.danger }]}>{facultyError}</Text>
+        <Pressable style={styles.modalOverlay} onPress={() => setModalVisible(false)}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, justifyContent: 'flex-end' }}>
+            <Pressable style={styles.modalContent} onPress={e => e.stopPropagation()}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>{editFaculty ? 'Edit Faculty' : 'New Faculty'}</Text>
+                <TouchableOpacity onPress={() => setModalVisible(false)}>
+                  <Ionicons name="close" size={24} color={colors.text} />
+                </TouchableOpacity>
               </View>
-            ) : null}
-            <Input label="Faculty Name" placeholder="e.g. Faculty of Science" value={name} onChangeText={(t) => { setName(t); setFacultyError(''); }} />
-            <Input label="Code (optional)" placeholder="e.g. SCI" value={code} onChangeText={setCode} autoCapitalize="characters" />
-            <Input label="Description (optional)" placeholder="Brief description" value={description} onChangeText={setDescription} />
-            <Button title={editFaculty ? 'Update' : 'Create'} onPress={handleSave} loading={saving} size="lg" style={{ marginTop: spacing.sm }} />
-          </View>
-        </View>
+              <ScrollView keyboardShouldPersistTaps="handled" bounces={false}>
+              {facultyError ? (
+                <View style={[styles.errorBox, { backgroundColor: colors.dangerLight }]}>
+                  <Text style={[styles.errorText, { color: colors.danger }]}>{facultyError}</Text>
+                </View>
+              ) : null}
+              <Input label="Faculty Name" placeholder="e.g. Faculty of Science" value={name} onChangeText={(t) => { setName(t); setFacultyError(''); }} />
+              <Input label="Code (optional)" placeholder="e.g. SCI" value={code} onChangeText={setCode} autoCapitalize="characters" />
+              <Input label="Description (optional)" placeholder="Brief description" value={description} onChangeText={setDescription} />
+              <Button title={editFaculty ? 'Update' : 'Create'} onPress={handleSave} loading={saving} size="lg" style={{ marginTop: spacing.sm }} />
+              </ScrollView>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Pressable>
       </Modal>
 
       {/* Create/Edit Department Modal */}
       <Modal visible={deptModalVisible} animationType="slide" transparent onRequestClose={() => setDeptModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{deptEditTarget?.name ? 'Edit Department' : 'New Department'}</Text>
-              <TouchableOpacity onPress={() => setDeptModalVisible(false)}>
-                <Ionicons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-            {deptError ? (
-              <View style={[styles.errorBox, { backgroundColor: colors.dangerLight }]}>
-                <Text style={[styles.errorText, { color: colors.danger }]}>{deptError}</Text>
+        <Pressable style={styles.modalOverlay} onPress={() => setDeptModalVisible(false)}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, justifyContent: 'flex-end' }}>
+            <Pressable style={styles.modalContent} onPress={e => e.stopPropagation()}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>{deptEditTarget?.name ? 'Edit Department' : 'New Department'}</Text>
+                <TouchableOpacity onPress={() => setDeptModalVisible(false)}>
+                  <Ionicons name="close" size={24} color={colors.text} />
+                </TouchableOpacity>
               </View>
-            ) : null}
-            <Input label="Department Name" placeholder="e.g. Computer Science" value={deptName} onChangeText={(t) => { setDeptName(t); setDeptError(''); }} leftIcon="business-outline" />
-            <Input label="Department Code" placeholder="e.g. CSC" value={deptCode} onChangeText={(t) => { setDeptCode(t); setDeptError(''); }} leftIcon="code-outline" autoCapitalize="characters" />
-            <Button title={deptEditTarget?.name ? 'Update' : 'Create'} onPress={handleSaveDept} loading={deptSaving} size="lg" style={{ marginTop: spacing.sm }} />
-          </View>
-        </View>
+              <ScrollView keyboardShouldPersistTaps="handled" bounces={false}>
+              {deptError ? (
+                <View style={[styles.errorBox, { backgroundColor: colors.dangerLight }]}>
+                  <Text style={[styles.errorText, { color: colors.danger }]}>{deptError}</Text>
+                </View>
+              ) : null}
+              <Input label="Department Name" placeholder="e.g. Computer Science" value={deptName} onChangeText={(t) => { setDeptName(t); setDeptError(''); }} leftIcon="business-outline" />
+              <Input label="Department Code" placeholder="e.g. CSC" value={deptCode} onChangeText={(t) => { setDeptCode(t); setDeptError(''); }} leftIcon="code-outline" autoCapitalize="characters" />
+              <Button title={deptEditTarget?.name ? 'Update' : 'Create'} onPress={handleSaveDept} loading={deptSaving} size="lg" style={{ marginTop: spacing.sm }} />
+              </ScrollView>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Pressable>
       </Modal>
 
       {/* Delete Faculty Confirmation */}
