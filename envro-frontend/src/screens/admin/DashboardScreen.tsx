@@ -298,6 +298,27 @@ export default function DashboardScreen({ navigation }: any) {
 
 
 
+      {/* ─── Empty State: No Reports ─── */}
+      {categoryData.length === 0 && monthlyTrend.length === 0 && recentReports.length === 0 && (
+        <View style={[styles.emptyState, { backgroundColor: colors.surface }]}>
+          <View style={[styles.emptyIconWrap, { backgroundColor: colors.primaryBg }]}>
+            <Ionicons name="leaf-outline" size={48} color={colors.primary} />
+          </View>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>Welcome to EnvroGuard</Text>
+          <Text style={[styles.emptySubtitle, { color: colors.textTertiary }]}>
+            No environmental reports yet. Once students start submitting reports, your dashboard will come alive with real-time insights.
+          </Text>
+          <TouchableOpacity
+            style={[styles.emptyButton, { backgroundColor: colors.primary }]}
+            onPress={() => navigation.navigate('Reports' as never, { screen: 'AdminReportsList', params: { status: '' } } as never)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="document-text-outline" size={16} color="#FFF" />
+            <Text style={styles.emptyButtonText}>View Reports</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* ─── Category Breakdown ─── */}
       {categoryData.length > 0 && (
         <View style={[styles.chartCard, { backgroundColor: colors.surface }]}>
@@ -916,6 +937,54 @@ const getStyles = (c: typeof import('../../constants/theme').lightColors) => Sty
   timelineMeta: {
     fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: 12,
+  },
+
+  /* ─── Empty State ─── */
+  emptyState: {
+    marginHorizontal: PADDING,
+    marginBottom: spacing.md,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    alignItems: 'center',
+    ...Platform.select({
+      web: { boxShadow: '0 2px 8px rgba(0,0,0,0.05)' },
+      default: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
+    }),
+  },
+  emptyIconWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  emptyTitle: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: 18,
+    lineHeight: 24,
+    marginBottom: spacing.xs,
+  },
+  emptySubtitle: {
+    fontFamily: 'PlusJakartaSans_400Regular',
+    fontSize: 13,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.sm,
+  },
+  emptyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.full,
+  },
+  emptyButtonText: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 13,
+    color: '#FFF',
   },
 
   /* ─── Notification Panel ─── */
