@@ -14,6 +14,28 @@ export const importStudentsService = async (fileBuffer, facultyId, fileType, act
     throw new ApiError(404, 'Faculty not found');
   }
 
+  if (actorRole === 'departmentAdmin') {
+    if (actorDepartmentCode) {
+      // Already resolved by auth middleware — good
+    } else if (actorDepartment) {
+      const Department = mongoose.model('Department');
+      let dept = null;
+      try {
+        dept = await Department.findById(actorDepartment).select('name code');
+      } catch {}
+      if (!dept && typeof actorDepartment === 'string') {
+        dept = await Department.findOne({ code: actorDepartment }).select('name code');
+      }
+      if (dept) {
+        actorDepartmentCode = dept.code;
+      } else {
+        logger.error(`DepartmentAdmin ${actorId}: department "${actorDepartment}" not found in Department collection`);
+      }
+    } else {
+      logger.error(`DepartmentAdmin ${actorId}: no department field set on account`);
+    }
+  }
+
   let records;
 
   if (fileType === 'csv') {
@@ -32,9 +54,11 @@ export const importStudentsService = async (fileBuffer, facultyId, fileType, act
     updated: 0,
     failed: 0,
     errors: [],
+    note: null,
   };
 
   const isFacultyAdmin = actorRole === 'facultyAdmin';
+  let departmentOverridden = false;
 
   for (const record of records) {
     try {
@@ -50,7 +74,24 @@ export const importStudentsService = async (fileBuffer, facultyId, fileType, act
 
       let department = record.department;
 
-      if (!isFacultyAdmin && actorDepartmentCode) {
+      if (!isFacultyAdmin) {
+        if (!actorDepartmentCode) {
+          results.failed++;
+          let errorMsg = 'Your department could not be resolved. ';
+          if (!actorDepartment) {
+            errorMsg += 'Your account has no department assigned. Contact the administrator who created your account.';
+          } else {
+            errorMsg += `Your account references department "${actorDepartment}" which was not found. Contact the administrator to re-link your department.`;
+          }
+          results.errors.push({
+            row: record._row,
+            error: errorMsg,
+          });
+          continue;
+        }
+        if (record.department && record.department.toUpperCase() !== actorDepartmentCode.toUpperCase()) {
+          departmentOverridden = true;
+        }
         department = actorDepartmentCode;
       }
 
@@ -125,15 +166,42 @@ export const importStudentsService = async (fileBuffer, facultyId, fileType, act
     failed: results.failed,
   });
 
+  if (departmentOverridden) {
+    results.note = `Department in your file was overridden to your department (${actorDepartmentCode}). Students are always assigned to your department.`;
+  }
+
   return results;
 };
 
-export const batchCreateStudentsService = async (students, facultyId, actorId) => {
+export const batchCreateStudentsService = async (students, facultyId, actorId, actorRole, actorDepartment, actorDepartmentCode) => {
   const faculty = await Faculty.findById(facultyId);
   if (!faculty) {
     throw new ApiError(404, 'Faculty not found');
   }
 
+  if (actorRole === 'departmentAdmin') {
+    if (actorDepartmentCode) {
+      // Already resolved by auth middleware
+    } else if (actorDepartment) {
+      const Department = mongoose.model('Department');
+      let dept = null;
+      try {
+        dept = await Department.findById(actorDepartment).select('name code');
+      } catch {}
+      if (!dept && typeof actorDepartment === 'string') {
+        dept = await Department.findOne({ code: actorDepartment }).select('name code');
+      }
+      if (dept) {
+        actorDepartmentCode = dept.code;
+      } else {
+        logger.error(`DepartmentAdmin ${actorId}: department "${actorDepartment}" not found in Department collection`);
+      }
+    } else {
+      logger.error(`DepartmentAdmin ${actorId}: no department field set on account`);
+    }
+  }
+
+  const isDepartmentAdmin = actorRole === 'departmentAdmin';
   const results = {
     total: students.length,
     created: 0,
@@ -155,6 +223,26 @@ export const batchCreateStudentsService = async (students, facultyId, actorId) =
         continue;
       }
 
+      let department = record.department;
+
+      if (isDepartmentAdmin) {
+        if (!actorDepartmentCode) {
+          results.failed++;
+          let errorMsg = 'Your department could not be resolved. ';
+          if (!actorDepartment) {
+            errorMsg += 'Your account has no department assigned. Contact the administrator who created your account.';
+          } else {
+            errorMsg += `Your account references department "${actorDepartment}" which was not found. Contact the administrator to re-link your department.`;
+          }
+          results.errors.push({
+            row: i + 1,
+            error: errorMsg,
+          });
+          continue;
+        }
+        department = actorDepartmentCode;
+      }
+
       const existing = await Student.findOne({
         registrationNumber: record.registrationNumber.toUpperCase(),
       });
@@ -163,7 +251,7 @@ export const batchCreateStudentsService = async (students, facultyId, actorId) =
         await Student.findByIdAndUpdate(existing._id, {
           fullName: record.fullName,
           email: record.email.toLowerCase(),
-          department: record.department,
+          department,
           faculty: facultyId,
           level: record.level,
           isEligible: true,
@@ -174,7 +262,7 @@ export const batchCreateStudentsService = async (students, facultyId, actorId) =
           registrationNumber: record.registrationNumber.toUpperCase(),
           fullName: record.fullName,
           email: record.email.toLowerCase(),
-          department: record.department,
+          department,
           faculty: facultyId,
           level: record.level,
           isEligible: true,
@@ -209,9 +297,10 @@ export const batchCreateStudentsService = async (students, facultyId, actorId) =
   return results;
 };
 
-export const getAllStudentsService = async (query, facultyFilter = null) => {
+export const getAllStudentsService = async (query, facultyFilter = null, departmentCode = null) => {
   const { page, limit, skip } = getPagination(query);
   const filters = buildStudentFilters(query, facultyFilter);
+  if (departmentCode) filters.department = departmentCode;
 
   const [students, total] = await Promise.all([
     Student.find(filters)
@@ -228,9 +317,10 @@ export const getAllStudentsService = async (query, facultyFilter = null) => {
   };
 };
 
-export const getStudentByIdService = async (studentId, facultyFilter = null) => {
+export const getStudentByIdService = async (studentId, facultyFilter = null, departmentCode = null) => {
   const filters = { _id: studentId };
   if (facultyFilter) filters.faculty = facultyFilter;
+  if (departmentCode) filters.department = departmentCode;
 
   const student = await Student.findOne(filters).populate('faculty', 'name code');
 
@@ -241,9 +331,10 @@ export const getStudentByIdService = async (studentId, facultyFilter = null) => 
   return student;
 };
 
-export const updateStudentService = async (studentId, data, facultyFilter = null) => {
+export const updateStudentService = async (studentId, data, facultyFilter = null, departmentCode = null) => {
   const filters = { _id: studentId };
   if (facultyFilter) filters.faculty = facultyFilter;
+  if (departmentCode) filters.department = departmentCode;
 
   const student = await Student.findOneAndUpdate(filters, data, {
     new: true,
@@ -257,9 +348,10 @@ export const updateStudentService = async (studentId, data, facultyFilter = null
   return student;
 };
 
-export const deleteStudentService = async (studentId, facultyFilter = null, actorId) => {
+export const deleteStudentService = async (studentId, facultyFilter = null, actorId, departmentCode = null) => {
   const filters = { _id: studentId };
   if (facultyFilter) filters.faculty = facultyFilter;
+  if (departmentCode) filters.department = departmentCode;
 
   const student = await Student.findOneAndDelete(filters);
 
@@ -279,7 +371,7 @@ export const deleteStudentService = async (studentId, facultyFilter = null, acto
   return { message: 'Student deleted successfully' };
 };
 
-export const searchStudentsService = async (searchTerm, facultyFilter = null) => {
+export const searchStudentsService = async (searchTerm, facultyFilter = null, departmentCode = null) => {
   const filters = {
     $or: [
       { registrationNumber: { $regex: searchTerm, $options: 'i' } },
@@ -290,6 +382,7 @@ export const searchStudentsService = async (searchTerm, facultyFilter = null) =>
   };
 
   if (facultyFilter) filters.faculty = facultyFilter;
+  if (departmentCode) filters.department = departmentCode;
 
   const students = await Student.find(filters)
     .populate('faculty', 'name')
@@ -298,9 +391,10 @@ export const searchStudentsService = async (searchTerm, facultyFilter = null) =>
   return students;
 };
 
-export const getStudentStatsService = async (facultyFilter = null) => {
+export const getStudentStatsService = async (facultyFilter = null, departmentCode = null) => {
   const filters = {};
   if (facultyFilter) filters.faculty = facultyFilter;
+  if (departmentCode) filters.department = departmentCode;
 
   const [total, eligible, ineligible] = await Promise.all([
     Student.countDocuments(filters),

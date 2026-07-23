@@ -1,10 +1,24 @@
 import api from './client';
 
+export interface ReportImageData {
+  url: string;
+  publicId: string;
+}
+
+export interface CreateReportPayload {
+  title: string;
+  description: string;
+  category: string;
+  address: string;
+  latitude?: number;
+  longitude?: number;
+  faculty?: string;
+  images: ReportImageData[];
+}
+
 export const reportsApi = {
-  createReport: (formData: FormData) =>
-    api.post('/reports', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }),
+  createReport: (payload: CreateReportPayload) =>
+    api.post('/reports', payload),
 
   getMyReports: (params?: { page?: number; limit?: number; status?: string }) =>
     api.get('/reports/my-reports', { params }),

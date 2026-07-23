@@ -241,10 +241,27 @@ export const getCurrentUser = asyncHandler(async (req, res) => {
   }
 
   if (req.user.role === 'departmentAdmin') {
+    const { Department } = await import('../department/model.js');
+    const { Faculty } = await import('../faculty/model.js');
+    let dept = null;
+    try {
+      dept = user.department ? await Department.findById(user.department).select('name code') : null;
+    } catch {}
+    if (!dept && typeof user.department === 'string') {
+      dept = await Department.findOne({ code: user.department }).select('name code');
+    }
+    if (!dept && user.faculty) {
+      dept = await Department.findOne({ faculty: user.faculty }).select('name code');
+    }
+    const fac = user.faculty ? await Faculty.findById(user.faculty).select('name code') : null;
     profileData = {
       ...profileData,
       faculty: user.faculty,
+      facultyName: fac?.name || null,
+      facultyCode: fac?.code || null,
       department: user.department,
+      departmentName: dept?.name || null,
+      departmentCode: dept?.code || null,
     };
   }
 

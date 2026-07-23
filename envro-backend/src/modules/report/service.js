@@ -2,17 +2,13 @@ import mongoose from 'mongoose';
 import { HazardReport } from './model.js';
 import { StudentAccount } from '../auth/model/StudentAccount.js';
 import { Student } from '../student/model.js';
-import {
-  uploadMultipleToCloudinary,
-  deleteFromCloudinary,
-} from '../../services/cloudinary.service.js';
 import { REPORT_STATUS, NOTIFICATION_TYPES } from '../../constants/hazard.js';
 import { ApiError } from '../../utils/apiError.js';
 import { createNotificationService } from '../notification/service.js';
 import { createAuditLog } from '../../services/audit.service.js';
 import { addReportSubmittedEvent, addStatusChangedEvent, addAssignedEvent } from '../../services/timeline.service.js';
 
-export const createReportService = async (data, files, studentAccountId) => {
+export const createReportService = async (data, studentAccountId) => {
   const studentAccount = await StudentAccount.findById(studentAccountId);
 
   if (!studentAccount) {
@@ -27,11 +23,9 @@ export const createReportService = async (data, files, studentAccountId) => {
     throw new ApiError(404, 'Student record not found');
   }
 
-  let images = [];
-
-  if (files && files.length > 0) {
-    images = await uploadMultipleToCloudinary(files);
-  }
+  const images = Array.isArray(data.images)
+    ? data.images.map(img => ({ url: img.url, publicId: img.publicId }))
+    : [];
 
   const report = await HazardReport.create({
     title: data.title,
@@ -254,10 +248,6 @@ export const deleteReportService = async (reportId, actorId) => {
 
   if (!report) {
     throw new ApiError(404, 'Report not found');
-  }
-
-  for (const image of report.images) {
-    await deleteFromCloudinary(image.publicId);
   }
 
   await HazardReport.findByIdAndDelete(reportId);

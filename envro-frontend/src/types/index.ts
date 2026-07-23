@@ -6,7 +6,11 @@ export interface User {
   isActive: boolean;
   lastLogin?: string;
   faculty?: string;
+  facultyName?: string;
+  facultyCode?: string;
   department?: string;
+  departmentName?: string;
+  departmentCode?: string;
   registrationNumber?: string;
 }
 

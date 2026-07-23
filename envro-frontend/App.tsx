@@ -10,6 +10,7 @@ import { AuthProvider } from './src/contexts/AuthContext';
 import { NetworkProvider } from './src/contexts/NetworkContext';
 import NetworkBanner from './src/components/ui/NetworkBanner';
 import RootNavigator from './src/navigation/RootNavigator';
+import { ErrorBoundary } from './src/components/ui/ErrorBoundary';
 import { usePushNotifications } from './src/hooks/usePushNotifications';
 
 const toastConfig = {
@@ -95,14 +96,16 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <AuthProvider>
-          <NetworkProvider>
-            <AppContent />
-          </NetworkProvider>
-          <StatusBar style="dark" />
-        </AuthProvider>
-      </SafeAreaProvider>
+      <ErrorBoundary>
+        <SafeAreaProvider>
+          <AuthProvider>
+            <NetworkProvider>
+              <AppContent />
+            </NetworkProvider>
+            <StatusBar style="dark" />
+          </AuthProvider>
+        </SafeAreaProvider>
+      </ErrorBoundary>
     </GestureHandlerRootView>
   );
 }

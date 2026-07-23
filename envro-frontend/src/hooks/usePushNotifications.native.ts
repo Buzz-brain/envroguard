@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { deviceTokensApi } from '../api/deviceTokens';
-import { navigateToReport } from '../utils/navigation';
+import { navigateFromNotification } from '../utils/navigation';
 
 let Notifications: any = null;
 try {
@@ -20,6 +20,25 @@ if (Notifications) {
   });
 }
 
+async function ensureNotificationChannels() {
+  if (Platform.OS !== 'android' || !Notifications) return;
+  try {
+    await Notifications.setNotificationChannelAsync('notification', {
+      name: 'Notifications',
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 100, 50, 100],
+      lightColor: '#059669',
+      sound: 'default',
+    });
+    await Notifications.setNotificationChannelAsync('toast', {
+      name: 'Toast Sounds',
+      importance: Notifications.AndroidImportance.LOW,
+      vibrationPattern: [0],
+      lightColor: '#059669',
+    });
+  } catch {}
+}
+
 export function usePushNotifications() {
   const { user } = useAuth();
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
@@ -33,6 +52,7 @@ export function usePushNotifications() {
 
     async function register() {
       try {
+        await ensureNotificationChannels();
         const { status: existingStatus } = await Notifications.getPermissionsAsync();
         let finalStatus = existingStatus;
         if (existingStatus !== 'granted') {
@@ -58,9 +78,7 @@ export function usePushNotifications() {
 
     responseListener.current = Notifications.addNotificationResponseReceivedListener((response: any) => {
       const data = response.notification.request.content.data;
-      if (data?.reportId) {
-        navigateToReport(data.reportId);
-      }
+      navigateFromNotification(data);
     });
 
     return () => {

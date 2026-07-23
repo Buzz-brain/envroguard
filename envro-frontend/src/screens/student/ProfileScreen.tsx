@@ -261,7 +261,7 @@ export default function ProfileScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.logoutModalConfirmBtn, { backgroundColor: colors.danger }]}
-                onPress={logout}
+                onPress={() => { setShowLogoutModal(false); setTimeout(logout, 300); }}
                 activeOpacity={0.7}
               >
                 <Text style={styles.logoutModalConfirmText}>Sign Out</Text>

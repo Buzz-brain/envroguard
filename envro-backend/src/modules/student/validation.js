@@ -28,11 +28,7 @@ export const updateStudent = [
     .withMessage('isEligible must be a boolean'),
 ];
 
-export const importStudents = [
-  body('facultyId')
-    .isMongoId()
-    .withMessage('Valid faculty ID is required'),
-];
+export const importStudents = [];
 
 export const batchCreateStudents = [
   body('students')

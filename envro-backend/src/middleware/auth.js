@@ -49,9 +49,17 @@ export const authenticate = async (req, res, next) => {
       userData.department = user.department;
       if (user.department) {
         const Department = mongoose.model('Department');
-        const dept = await Department.findById(user.department).select('name code');
-        userData.departmentName = dept?.name;
-        userData.departmentCode = dept?.code;
+        let dept = null;
+        try {
+          dept = await Department.findById(user.department).select('name code');
+        } catch {}
+        if (!dept && typeof user.department === 'string') {
+          dept = await Department.findOne({ code: user.department }).select('name code');
+        }
+        if (dept) {
+          userData.departmentName = dept.name;
+          userData.departmentCode = dept.code;
+        }
       }
     }
 

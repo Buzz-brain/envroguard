@@ -1,6 +1,5 @@
 import { config } from './config/index.js';
 import { connectDB } from './config/database.js';
-import { configureCloudinary } from './config/cloudinary.js';
 import { verifyEmailConnection } from './config/email.js';
 import { logger } from './utils/logger.js';
 import { app } from './app.js';
@@ -10,7 +9,6 @@ const PORT = config.port;
 async function startServer() {
   try {
     await connectDB();
-    configureCloudinary();
     await verifyEmailConnection();
 
     app.listen(PORT, () => {

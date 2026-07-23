@@ -447,7 +447,15 @@ export const adminLoginService = async (email, password, role) => {
 
   if (role === 'departmentAdmin' && admin.department) {
     const Department = mongoose.model('Department');
-    departmentInfo = await Department.findById(admin.department).select('name code');
+    try {
+      departmentInfo = await Department.findById(admin.department).select('name code');
+    } catch {}
+    if (!departmentInfo && typeof admin.department === 'string') {
+      departmentInfo = await Department.findOne({ code: admin.department }).select('name code');
+    }
+    if (!departmentInfo && admin.faculty) {
+      departmentInfo = await Department.findOne({ faculty: admin.faculty }).select('name code');
+    }
   }
 
   return {
@@ -457,8 +465,12 @@ export const adminLoginService = async (email, password, role) => {
       email: admin.email,
       role: admin.role,
       isActive: admin.isActive,
-      faculty: facultyInfo || admin.faculty || null,
-      department: departmentInfo || admin.department || null,
+      faculty: admin.faculty || null,
+      facultyName: facultyInfo?.name || null,
+      facultyCode: facultyInfo?.code || null,
+      department: admin.department || null,
+      departmentName: departmentInfo?.name || null,
+      departmentCode: departmentInfo?.code || null,
     },
     accessToken,
     refreshToken,
@@ -683,7 +695,7 @@ export const refreshTokenService = async (refreshToken) => {
   let decoded;
 
   try {
-    decoded = require('jsonwebtoken').verify(
+    decoded = jwt.verify(
       refreshToken,
       config.jwt.refreshSecret
     );

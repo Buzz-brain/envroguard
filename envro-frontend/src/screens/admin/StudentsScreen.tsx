@@ -23,6 +23,7 @@ import { Loading } from '../../components/ui/Loading';
 import { SkeletonList } from '../../components/ui/SkeletonList';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { typography, spacing, borderRadius, shadows } from '../../constants';
+import { lightColors } from '../../constants/theme';
 import { useColors } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { studentsApi } from '../../api/students';
@@ -80,11 +81,12 @@ export default function StudentsScreen() {
   const [departments, setDepartments] = useState<DeptType[]>([]);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const facultyDepts = departments.filter(
-    d => isFacultyAdmin && user?.faculty && String(typeof d.faculty === 'string' ? d.faculty : d.faculty._id) === String(user.faculty)
+    d => isFacultyAdmin && user?.faculty && String(typeof d.faculty === 'string' ? d.faculty : d.faculty._id) === String(typeof user.faculty === 'object' ? (user.faculty as any)?._id : user.faculty)
   );
   const [importModalVisible, setImportModalVisible] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [deleteError, setDeleteError] = useState('');
+  const styles = getStyles(colors);
 
   useEffect(() => {
     departmentsApi.getAll().then((res: any) => {
@@ -172,15 +174,30 @@ export default function StudentsScreen() {
         const created = result?.created ?? 0;
         const failed = result?.failed ?? 0;
         const errors = result?.errors as Array<{ row: number; error: string }> | undefined;
-        if (created > 0) {
-          ToastService.success('Import Complete', `${created} student(s) imported successfully.`);
-          notificationSuccess();
-        } else if (failed > 0) {
-          let msg = `Import completed with ${failed} failure(s).`;
+        const note = result?.note as string | undefined;
+        if (created > 0 && failed > 0) {
+          let msg = `${created} imported, ${failed} failed.`;
+          if (note) msg += `\n${note}`;
           if (errors?.length) {
-            msg += '\n' + errors.map(e => `Row ${e.row}: ${e.error}`).join('\n');
+            const unique = [...new Map(errors.map(e => [e.error, e])).values()];
+            msg += '\n' + unique.map(e => e.error).join('\n');
+            if (unique.length < errors.length) msg += `\n(affects ${errors.length} row${errors.length > 1 ? 's' : ''})`;
           }
-          ToastService.error('Import Completed with Errors', msg);
+          ToastService.warning('Partial Import', msg);
+          notificationSuccess();
+        } else if (created > 0) {
+          let msg = `${created} student(s) imported successfully.`;
+          if (note) msg += `\n${note}`;
+          ToastService.success('Import Complete', msg);
+          notificationSuccess();
+        } else {
+          let msg = 'All rows failed.';
+          if (errors?.length) {
+            const unique = [...new Map(errors.map(e => [e.error, e])).values()];
+            msg += '\n' + unique.map(e => e.error).join('\n');
+            if (unique.length < errors.length) msg += `\n(affects ${errors.length} row${errors.length > 1 ? 's' : ''})`;
+          }
+          ToastService.error('Import Failed', msg);
           notificationError();
         }
         fetchStudents();
@@ -279,7 +296,7 @@ export default function StudentsScreen() {
   };
 
   const openBatchModal = () => {
-    const defaultDept = isDeptAdmin && user?.department ? user.department : '';
+    const defaultDept = isDeptAdmin && user?.departmentCode ? user.departmentCode : '';
     setBatchRows([{ id: batchIdRef.current++, registrationNumber: '', fullName: '', email: '', department: defaultDept, level: '' }]);
     setBatchModalVisible(true);
   };
@@ -312,21 +329,18 @@ export default function StudentsScreen() {
     }
   };
 
-  if (loading) return <SkeletonList variant="student-card" />;
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Students</Text>
-          <Text style={styles.subtitle}>{students.length} students</Text>
+          <Text style={styles.subtitle}>{loading ? '...' : `${students.length} students`}</Text>
         </View>
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           {isDeptAdmin && <Button title="Batch Entry" onPress={openBatchModal} variant="outline" size="sm" />}
           {(isDeptAdmin || isFacultyAdmin) && <Button title="Import" onPress={handleImport} variant="outline" size="sm" loading={importing} />}
         </View>
-      </View>
-      <View style={styles.searchContainer}>
+      </View><View style={styles.searchContainer}>
         <Ionicons name="search" size={20} color={colors.textTertiary} />
         <TextInput
           style={styles.searchInput}
@@ -335,12 +349,17 @@ export default function StudentsScreen() {
           value={search}
           onChangeText={setSearch}
         />
-        {search && (
+        {search ? (
           <TouchableOpacity onPress={() => setSearch('')}>
             <Ionicons name="close-circle" size={20} color={colors.textTertiary} />
           </TouchableOpacity>
-        )}
+        ) : null}
       </View>
+      {loading ? (
+        <View style={{ flex: 1, padding: spacing.lg }}>
+          <SkeletonList variant="student-card" />
+        </View>
+      ) : (
       <FlatList
         data={students}
         keyExtractor={(item) => item._id}
@@ -378,6 +397,7 @@ export default function StudentsScreen() {
           </TouchableOpacity>
         )}
       />
+      )}
       {/* Import Instruction Modal */}
       <Modal visible={importModalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
@@ -666,9 +686,13 @@ export default function StudentsScreen() {
                         <View style={[styles.batchInput, { backgroundColor: colors.surfaceAlt, borderColor: colors.border, flexDirection: 'row', alignItems: 'center' }]}>
                           <Ionicons name="business-outline" size={16} color={colors.primary} />
                           <Text style={[typography.body, { color: colors.text, fontWeight: '600', marginLeft: spacing.sm }]}>
-                            {user?.department || 'Your Department'}
+                            {user?.departmentName || user?.departmentCode || 'Your Department'}
                           </Text>
-                          <Text style={[typography.caption, { color: colors.textTertiary, marginLeft: 'auto' }]}>Auto-set</Text>
+                          {user?.departmentCode && (
+                            <Text style={[typography.caption, { color: colors.textTertiary, marginLeft: spacing.sm }]}>
+                              ({user.departmentCode})
+                            </Text>
+                          )}
                         </View>
                       </View>
                     ) : (
@@ -764,7 +788,7 @@ export default function StudentsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (c: typeof lightColors) => StyleSheet.create({
   container: { flex: 1 },
   header: {
     flexDirection: 'row',
@@ -774,21 +798,21 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xxxl,
     paddingBottom: spacing.sm,
   },
-  title: { ...typography.h2, color: '#1F2937' },
-  subtitle: { ...typography.bodySmall, color: '#6B7280', marginTop: 2 },
+  title: { ...typography.h2, color: c.text },
+  subtitle: { ...typography.bodySmall, color: c.textSecondary, marginTop: 2 },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: c.surface,
     marginHorizontal: spacing.lg,
     paddingHorizontal: spacing.md,
     borderRadius: borderRadius.md,
     height: 44,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: c.border,
     marginBottom: spacing.md,
   },
-  searchInput: { flex: 1, fontSize: 15, color: '#1F2937', marginLeft: spacing.sm, height: '100%' },
+  searchInput: { flex: 1, fontSize: 15, color: c.text, marginLeft: spacing.sm, height: '100%' },
   list: { padding: spacing.lg, paddingTop: 0, paddingBottom: 100 },
   studentCard: { marginBottom: spacing.sm },
   studentRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
@@ -796,18 +820,18 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: c.primaryBg,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { ...typography.h4, color: '#059669' },
+  avatarText: { ...typography.h4, color: c.primary },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: c.surface,
     borderTopLeftRadius: borderRadius.xl,
     borderTopRightRadius: borderRadius.xl,
     padding: spacing.lg,
@@ -820,7 +844,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.lg,
   },
-  modalTitle: { ...typography.h3, color: '#1F2937' },
+  modalTitle: { ...typography.h3, color: c.text },
   detailAvatarSection: {
     alignItems: 'center',
     marginBottom: spacing.lg,
@@ -829,7 +853,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: c.primaryBg,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.md,
@@ -837,11 +861,11 @@ const styles = StyleSheet.create({
   detailAvatarText: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#059669',
+    color: c.primary,
   },
-  detailName: { ...typography.h3, color: '#1F2937' },
+  detailName: { ...typography.h3, color: c.text },
   detailFields: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: c.surfaceAlt,
     borderRadius: borderRadius.md,
     padding: spacing.md,
   },
@@ -852,20 +876,20 @@ const styles = StyleSheet.create({
   },
   detailFieldBorder: {
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: c.borderLight,
   },
   editInput: {
     fontSize: 15,
-    color: '#1F2937',
+    color: c.text,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: c.border,
     paddingVertical: spacing.xs,
     marginTop: 2,
   },
   errorBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEE2E2',
+    backgroundColor: c.dangerLight,
     borderRadius: borderRadius.sm,
     padding: spacing.sm,
     marginBottom: spacing.md,
@@ -873,7 +897,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     ...typography.caption,
-    color: '#DC2626',
+    color: c.danger,
     flex: 1,
   },
   batchScrollArea: {

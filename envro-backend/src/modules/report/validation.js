@@ -37,6 +37,20 @@ export const createReport = [
     .optional()
     .isIn(Object.values(REPORT_PRIORITY))
     .withMessage('Invalid priority level'),
+  body('images')
+    .optional()
+    .isArray({ min: 0, max: 5 })
+    .withMessage('Maximum 5 images allowed'),
+  body('images.*.url')
+    .if(body('images').exists())
+    .notEmpty()
+    .withMessage('Image URL is required')
+    .isURL()
+    .withMessage('Invalid image URL'),
+  body('images.*.publicId')
+    .if(body('images').exists())
+    .notEmpty()
+    .withMessage('Image public ID is required'),
 ];
 
 export const updateReportStatus = [

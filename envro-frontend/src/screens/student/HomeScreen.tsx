@@ -111,14 +111,12 @@ export default function StudentHome({ navigation }: any) {
 
   useAutoRetry(fetchReports, !loading);
 
-  if (loading) return <SkeletonHome />;
+  const initial = (user?.fullName?.[0] || user?.email?.[0] || 'U').toUpperCase();
 
   const pending = reports.filter(r => r.status === 'pending').length;
   const resolved = reports.filter(r => r.status === 'resolved').length;
   const active = reports.filter(r => r.status === 'in_progress' || r.status === 'under_review').length;
   const all = reports.length;
-
-  const initial = (user?.fullName?.[0] || user?.email?.[0] || 'U').toUpperCase();
 
   return (
     <ScrollView
@@ -225,7 +223,11 @@ export default function StudentHome({ navigation }: any) {
       </View>
 
       <View style={{ paddingBottom: spacing.xxxl }}>
-        {reports.length === 0 ? (
+        {loading ? (
+          <View style={{ padding: spacing.lg }}>
+            <SkeletonHome />
+          </View>
+        ) : reports.length === 0 ? (
           <View style={styles.emptyState}>
             <View style={[styles.emptyIconWrap, { backgroundColor: colors.primaryBg }]}>
               <Ionicons name="leaf-outline" size={32} color={colors.primary} />

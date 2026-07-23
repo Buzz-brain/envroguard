@@ -83,8 +83,6 @@ export default function MyReportsScreen({ navigation }: any) {
     fetchReports(page + 1, true);
   };
 
-  if (loading) return <SkeletonList variant="accent-card" />;
-
   const pendingCount = reports.filter(r => r.status === 'pending').length;
   const activeCount = reports.filter(r => r.status === 'in_progress' || r.status === 'under_review').length;
   const resolvedCount = reports.filter(r => r.status === 'resolved').length;
@@ -95,7 +93,7 @@ export default function MyReportsScreen({ navigation }: any) {
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>My Reports</Text>
-          <Text style={styles.subtitle}>{reports.length} report{reports.length !== 1 ? 's' : ''}</Text>
+          <Text style={styles.subtitle}>{loading ? '...' : `${reports.length} report${reports.length !== 1 ? 's' : ''}`}</Text>
         </View>
         <TouchableOpacity
           style={styles.addButton}
@@ -110,19 +108,19 @@ export default function MyReportsScreen({ navigation }: any) {
       <View style={styles.statsRow}>
         <View style={styles.statItem}>
           <View style={[styles.statDot, { backgroundColor: '#F59E0B' }]} />
-          <Text style={styles.statValue}>{pendingCount}</Text>
+          <Text style={styles.statValue}>{loading ? '—' : pendingCount}</Text>
           <Text style={styles.statLabel}>Pending</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
           <View style={[styles.statDot, { backgroundColor: '#8B5CF6' }]} />
-          <Text style={styles.statValue}>{activeCount}</Text>
+          <Text style={styles.statValue}>{loading ? '—' : activeCount}</Text>
           <Text style={styles.statLabel}>Active</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
           <View style={[styles.statDot, { backgroundColor: '#10B981' }]} />
-          <Text style={styles.statValue}>{resolvedCount}</Text>
+          <Text style={styles.statValue}>{loading ? '—' : resolvedCount}</Text>
           <Text style={styles.statLabel}>Resolved</Text>
         </View>
       </View>
@@ -144,6 +142,11 @@ export default function MyReportsScreen({ navigation }: any) {
       </View>
 
       {/* ── List ── */}
+      {loading ? (
+        <View style={{ flex: 1, padding: spacing.lg }}>
+          <SkeletonList variant="accent-card" />
+        </View>
+      ) : (
       <FlatList
         data={reports}
         keyExtractor={(item) => item._id}
@@ -211,6 +214,7 @@ export default function MyReportsScreen({ navigation }: any) {
           );
         }}
       />
+      )}
     </View>
   );
 }

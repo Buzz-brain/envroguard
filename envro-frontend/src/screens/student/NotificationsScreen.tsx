@@ -82,18 +82,16 @@ export default function NotificationsScreen({ navigation }: any) {
     ]);
   };
 
-  if (loading) return <SkeletonList variant="notification-card" />;
-
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Notifications</Text>
           <Text style={styles.subtitle}>
-            {notifications.filter(n => !n.isRead).length} unread
+            {loading ? '...' : `${notifications.filter(n => !n.isRead).length} unread`}
           </Text>
         </View>
-        {notifications.some(n => !n.isRead) && (
+        {!loading && notifications.some(n => !n.isRead) && (
           <TouchableOpacity onPress={markAllRead}>
             <Text style={[typography.bodySmall, { color: colors.primary, fontWeight: '600' }]}>
               Mark All Read
@@ -102,6 +100,11 @@ export default function NotificationsScreen({ navigation }: any) {
         )}
       </View>
 
+      {loading ? (
+        <View style={{ flex: 1, padding: spacing.lg }}>
+          <SkeletonList variant="notification-card" />
+        </View>
+      ) : (
       <FlatList
         data={notifications}
         keyExtractor={(item) => item._id}
@@ -151,6 +154,7 @@ export default function NotificationsScreen({ navigation }: any) {
           </TouchableOpacity>
         )}
       />
+      )}
     </View>
   );
 }

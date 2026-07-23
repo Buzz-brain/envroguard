@@ -4,7 +4,6 @@ import * as reportValidation from './validation.js';
 import { authenticate } from '../../middleware/auth.js';
 import { authorize } from '../../middleware/rbac.js';
 import { validate } from '../../middleware/validate.js';
-import { uploadMiddleware } from '../../middleware/upload.js';
 import { logAction } from '../../services/audit.service.js';
 import { ROLES } from '../../constants/roles.js';
 
@@ -17,7 +16,6 @@ router.use(authenticate);
 router.post(
   '/',
   authorize(ROLES.STUDENT),
-  uploadMiddleware('images', 5),
   reportValidation.createReport,
   validate,
   logAction('HazardReport', 'create'),

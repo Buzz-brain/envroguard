@@ -139,19 +139,18 @@ export default function ReportsScreen({ navigation, route }: any) {
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
   };
 
-  if (loading) return <SkeletonList variant="accent-card" />;
-
   return (
     <View style={styles.container}>
       {/* ── Header ── */}
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Reports</Text>
-          <Text style={styles.subtitle}>{totalReports} report{totalReports !== 1 ? 's' : ''}</Text>
+          <Text style={styles.subtitle}>{loading ? '...' : `${totalReports} report${totalReports !== 1 ? 's' : ''}`}</Text>
         </View>
       </View>
 
       {/* ── Stats Bar ── */}
+      {!loading && (
       <View style={styles.statsRow}>
         <View style={styles.statItem}>
           <View style={[styles.statDot, { backgroundColor: sc.pending }]} />
@@ -171,6 +170,7 @@ export default function ReportsScreen({ navigation, route }: any) {
           <Text style={styles.statLabel}>Resolved</Text>
         </View>
       </View>
+      )}
 
       {/* ── Search ── */}
       <View style={styles.searchContainer}>
@@ -236,6 +236,11 @@ export default function ReportsScreen({ navigation, route }: any) {
       </View>
 
       {/* ── Report List ── */}
+      {loading ? (
+        <View style={{ flex: 1, padding: spacing.lg }}>
+          <SkeletonList variant="accent-card" />
+        </View>
+      ) : (
       <FlatList
         data={reports}
         keyExtractor={(item) => item._id}
@@ -324,6 +329,7 @@ export default function ReportsScreen({ navigation, route }: any) {
           );
         }}
       />
+      )}
 
       {/* ── Delete Confirmation Modal ── */}
       <Modal visible={deleteTarget !== null} transparent animationType="fade" onRequestClose={() => { setDeleteTarget(null); setDeleteError(''); }}>

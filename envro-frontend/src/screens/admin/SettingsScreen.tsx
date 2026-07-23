@@ -378,7 +378,7 @@ export default function SettingsScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalConfirmBtn, { backgroundColor: colors.danger }]}
-                onPress={logout}
+                onPress={() => { setShowLogoutModal(false); setTimeout(logout, 300); }}
                 activeOpacity={0.7}
               >
                 <Text style={styles.modalConfirmText}>Sign Out</Text>

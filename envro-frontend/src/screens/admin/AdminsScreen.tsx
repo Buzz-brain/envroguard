@@ -116,7 +116,7 @@ export default function AdminsScreen() {
     setHasMore(true);
     fetchAdmins(1);
     if (activeTab === 'departmentAdmin') {
-      const facultyId = user?.role === 'facultyAdmin' ? user.faculty : undefined;
+      const facultyId = user?.role === 'facultyAdmin' ? (typeof user.faculty === 'object' ? (user.faculty as any)?._id : user.faculty) : undefined;
       fetchDepartments(facultyId);
     }
   }, [fetchAdmins, activeTab, user, fetchDepartments]));
@@ -128,7 +128,7 @@ export default function AdminsScreen() {
       if (selectedFaculty) {
         fetchDepartments(selectedFaculty);
       } else if (user?.role === 'facultyAdmin' && user.faculty) {
-        fetchDepartments(user.faculty);
+        fetchDepartments(typeof user.faculty === 'object' ? (user.faculty as any)?._id : user.faculty);
       } else {
         fetchDepartments();
       }
@@ -241,7 +241,7 @@ export default function AdminsScreen() {
     setEditTarget({ id: item._id, type: activeTab });
     setName(item.fullName || '');
     setEmail(item.email || '');
-    setSelectedFaculty(fac || (user?.role === 'facultyAdmin' ? (user.faculty || '') : ''));
+    setSelectedFaculty(fac || (user?.role === 'facultyAdmin' ? (typeof user.faculty === 'object' ? (user.faculty as any)?._id || '' : user.faculty || '') : ''));
     setSelectedDepartment(dep || '');
     setCreateError('');
     setToggleError('');
@@ -267,8 +267,6 @@ export default function AdminsScreen() {
     }
   };
 
-  if (loading) return <SkeletonList variant="admin-card" />;
-
   const allTabs: { key: AdminType; label: string; shortLabel: string }[] = [
     { key: 'environmentalAdmin', label: 'Environmental Admins', shortLabel: 'Env. Admins' },
     { key: 'facultyAdmin', label: 'Faculty Admins', shortLabel: 'Faculty Admins' },
@@ -288,7 +286,12 @@ export default function AdminsScreen() {
           <Text style={styles.title}>Admins</Text>
           <Text style={styles.subtitle}>{totalAdmins} admin{totalAdmins !== 1 ? 's' : ''}</Text>
         </View>
-        <Button title="Add" onPress={() => { setCreateError(''); setName(''); setEmail(''); setSelectedFaculty(user?.role === 'facultyAdmin' ? (user.faculty || '') : ''); setSelectedDepartment(''); setEditTarget(null); setModalVisible(true); setToggleError(''); setFetchError(''); }} size="sm" />
+        <Button title="Add" onPress={() => {
+          setCreateError(''); setName(''); setEmail('');
+          const facId = user?.role === 'facultyAdmin' ? (typeof user.faculty === 'object' ? (user.faculty as any)?._id || '' : user.faculty || '') : '';
+          setSelectedFaculty(facId);
+          setSelectedDepartment(''); setEditTarget(null); setModalVisible(true); setToggleError(''); setFetchError('');
+        }} size="sm" />
       </View>
 
       {tabs.length > 1 ? (
@@ -320,6 +323,12 @@ export default function AdminsScreen() {
         </View>
       ) : null}
 
+      {loading ? (
+        <View style={styles.list}>
+          <SkeletonList variant="admin-card" />
+        </View>
+      ) : (
+      <>
       <FlatList
         data={admins}
         keyExtractor={(item) => item._id}
@@ -375,6 +384,8 @@ export default function AdminsScreen() {
           );
         }}
       />
+      </>
+      )}
 
       {/* Create Admin Modal */}
       <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
@@ -401,10 +412,15 @@ export default function AdminsScreen() {
                 <View style={{ marginBottom: spacing.md }}>
                   <Text style={[typography.label, { color: colors.text, marginBottom: spacing.xs }]}>Faculty</Text>
                   {user?.role === 'facultyAdmin' ? (
-                    <View style={[styles.facultyPill, { backgroundColor: colors.surfaceAlt }]}>
-                      <Text style={[typography.caption, { fontWeight: '600', color: colors.text }]}>
-                        {faculties.find(f => f._id === user.faculty)?.name || 'Your Faculty'}
+                    <View style={[styles.facultyLocked, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
+                      <Ionicons name="lock-closed-outline" size={16} color={colors.textTertiary} />
+                      <Text style={[typography.body, { color: colors.textSecondary, flex: 1 }]} numberOfLines={1}>
+                        {(() => {
+                          const f = faculties.find(f => f._id === (typeof user.faculty === 'object' ? (user.faculty as any)?._id : user.faculty));
+                          return f ? `${f.name} (${f.code || ''})` : 'Your Faculty';
+                        })()}
                       </Text>
+                      <Text style={[typography.caption, { color: colors.textTertiary, fontStyle: 'italic' }]}>Locked</Text>
                     </View>
                   ) : (
                     <View style={styles.facultyPicker}>
@@ -707,10 +723,22 @@ const getStyles = (c: typeof lightColors) => StyleSheet.create({
     borderColor: c.primary,
   },
   facultyPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.full,
     alignSelf: 'flex-start',
+  },
+  facultyLocked: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    gap: spacing.sm,
+    opacity: 0.7,
   },
   errorBox: {
     padding: spacing.sm,

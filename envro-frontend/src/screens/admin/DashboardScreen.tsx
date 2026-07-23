@@ -174,14 +174,13 @@ export default function DashboardScreen({ navigation }: any) {
     : capitalize(user?.role || 'U').charAt(0);
   const pendingCount = stats?.pendingReports ?? 0;
 
-  if (loading) return <DashboardSkeleton />;
-  if (!stats) return <ErrorState message="Failed to load dashboard" onRetry={fetchStats} />;
+  if (!stats && !loading) return <ErrorState message="Failed to load dashboard" onRetry={fetchStats} />;
 
-  const monthlyTrend = stats.monthlyTrend || [];
+  const monthlyTrend = stats?.monthlyTrend || [];
   const trendMax = monthlyTrend.length > 0 ? Math.max(...monthlyTrend.map(t => t.count)) : 1;
-  const categoryData = stats.reportsByCategory || [];
+  const categoryData = stats?.reportsByCategory || [];
   const catMax = categoryData.length > 0 ? Math.max(...categoryData.map(c => c.count)) : 1;
-  const recentReports = stats.recentReports || [];
+  const recentReports = stats?.recentReports || [];
 
   return (
     <View style={{ flex: 1 }}>
@@ -224,6 +223,11 @@ export default function DashboardScreen({ navigation }: any) {
         )}
       </LinearGradient>
 
+      {loading ? (
+        <View style={{ padding: spacing.lg }}>
+          <DashboardSkeleton />
+        </View>
+      ) : (<>
       {statsError ? (
         <View style={[styles.errorBanner, { backgroundColor: colors.dangerLight }]}>
           <Ionicons name="alert-circle" size={18} color={colors.danger} />
@@ -265,7 +269,7 @@ export default function DashboardScreen({ navigation }: any) {
       </View>
 
       {/* ─── Meta Chips ─── */}
-      {(() => {
+      {stats && (() => {
         const isFacultyScoped = user?.role === 'facultyAdmin' || user?.role === 'departmentAdmin';
         const pluralize = (count: number, word: string) => {
           const plural = /[^aeiou]y$/i.test(word) ? word.slice(0, -1) + 'ies' : word + 's';
@@ -304,7 +308,7 @@ export default function DashboardScreen({ navigation }: any) {
           <View style={[styles.emptyIconWrap, { backgroundColor: colors.primaryBg }]}>
             <Ionicons name="leaf-outline" size={48} color={colors.primary} />
           </View>
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>Welcome to EnvroGuard</Text>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>Welcome to EnvrioGuard</Text>
           <Text style={[styles.emptySubtitle, { color: colors.textTertiary }]}>
             No environmental reports yet. Once students start submitting reports, your dashboard will come alive with real-time insights.
           </Text>
@@ -363,7 +367,7 @@ export default function DashboardScreen({ navigation }: any) {
               <Text style={[styles.chartTitle, { color: colors.text }]}>Monthly Trend</Text>
             </View>
             <Text style={[styles.chartSubtitle, { color: colors.textTertiary }]}>
-              Last {monthlyTrend.length} months{stats.reportsThisWeek !== undefined ? ` · This Week: ${stats.reportsThisWeek}` : ''}
+              Last {monthlyTrend.length} months{stats?.reportsThisWeek !== undefined ? ` · This Week: ${stats.reportsThisWeek}` : ''}
             </Text>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -448,6 +452,7 @@ export default function DashboardScreen({ navigation }: any) {
           </View>
         </View>
       )}
+      </>)}
     </ScrollView>
       {panelVisible && (
         <>

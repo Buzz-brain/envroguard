@@ -250,18 +250,21 @@ export default function FacultiesScreen() {
     }
   };
 
-  if (loading) return <SkeletonList variant="faculty-card" />;
-
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Faculties</Text>
-          <Text style={styles.subtitle}>{faculties.length} facult{faculties.length !== 1 ? 'ies' : 'y'}</Text>
+          <Text style={styles.subtitle}>{loading ? '...' : `${faculties.length} facult${faculties.length !== 1 ? 'ies' : 'y'}`}</Text>
         </View>
         <Button title="Add" onPress={openCreate} size="sm" />
       </View>
 
+      {loading ? (
+        <View style={{ flex: 1, padding: spacing.lg }}>
+          <SkeletonList variant="faculty-card" />
+        </View>
+      ) : (
       <FlatList
         data={faculties}
         keyExtractor={(item) => item._id}
@@ -374,6 +377,7 @@ export default function FacultiesScreen() {
           );
         }}
       />
+      )}
 
       {/* Create/Edit Faculty Modal */}
       <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>

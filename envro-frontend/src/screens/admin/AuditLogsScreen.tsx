@@ -124,14 +124,12 @@ export default function AuditLogsScreen() {
     fetchLogs(page + 1, true);
   };
 
-  if (loading) return <SkeletonList variant="notification-card" />;
-
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Audit Log</Text>
-          <Text style={styles.subtitle}>{logs.length} entries</Text>
+          <Text style={styles.subtitle}>{loading ? '...' : `${logs.length} entries`}</Text>
         </View>
         <TouchableOpacity style={styles.filterBtn} activeOpacity={0.7} onPress={() => setShowFilters(true)}>
           <Ionicons name="funnel-outline" size={20} color={activeFilters > 0 ? colors.primary : colors.textSecondary} />
@@ -139,6 +137,11 @@ export default function AuditLogsScreen() {
         </TouchableOpacity>
       </View>
 
+      {loading ? (
+        <View style={{ flex: 1, padding: spacing.lg }}>
+          <SkeletonList variant="notification-card" />
+        </View>
+      ) : (
       <FlatList
         data={logs}
         keyExtractor={(item) => item._id}
@@ -168,6 +171,7 @@ export default function AuditLogsScreen() {
           </View>
         )}
       />
+      )}
       {/* ── Filter Modal ── */}
       <Modal visible={showFilters} transparent animationType="fade" onRequestClose={() => setShowFilters(false)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowFilters(false)}>

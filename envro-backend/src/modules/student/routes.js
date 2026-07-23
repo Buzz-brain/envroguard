@@ -4,7 +4,7 @@ import * as studentValidation from './validation.js';
 import { authenticate } from '../../middleware/auth.js';
 import { authorize } from '../../middleware/rbac.js';
 import { validate } from '../../middleware/validate.js';
-import { uploadMiddleware, uploadDocuments } from '../../middleware/upload.js';
+import { uploadDocuments } from '../../middleware/upload.js';
 import { logAction } from '../../services/audit.service.js';
 import { ROLES } from '../../constants/roles.js';
 

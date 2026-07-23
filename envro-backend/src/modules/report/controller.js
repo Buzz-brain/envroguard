@@ -6,7 +6,6 @@ import { getTimeline } from '../../services/timeline.service.js';
 export const createReport = asyncHandler(async (req, res) => {
   const report = await reportService.createReportService(
     req.body,
-    req.files,
     req.user.id
   );
 

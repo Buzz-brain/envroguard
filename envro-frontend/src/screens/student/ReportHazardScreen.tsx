@@ -21,6 +21,7 @@ import { typography, spacing, borderRadius, HAZARD_CATEGORIES, categoryColors, c
 import { lightColors } from '../../constants/theme';
 import { useColors } from '../../contexts/ThemeContext';
 import { reportsApi } from '../../api/reports';
+import { uploadMultipleToCloudinary } from '../../services/cloudinary';
 import { facultiesApi } from '../../api/faculties';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Faculty } from '../../types';
@@ -112,32 +113,32 @@ export default function ReportHazardScreen({ navigation, route }: any) {
 
     setLoading(true); setError(null);
     try {
-      const formData = new FormData();
-      formData.append('title', title.trim());
-      formData.append('description', description.trim());
-      formData.append('category', category);
-      formData.append('address', address.trim());
-      if (location) {
-        formData.append('latitude', String(location.lat));
-        formData.append('longitude', String(location.lng));
+      let uploadedImages: { url: string; publicId: string }[] = [];
+      if (images.length > 0) {
+        ToastService.info('Uploading', `Uploading ${images.length} image(s)...`);
+        uploadedImages = await uploadMultipleToCloudinary(
+          images.map(img => img.uri),
+          (done, total) => {
+            ToastService.info('Uploading', `Uploaded ${done}/${total} image(s)...`);
+          }
+        );
       }
-      if (!isStudent && selectedFaculty) formData.append('faculty', selectedFaculty);
 
-      images.forEach((img, i) => {
-        const uriParts = img.uri.split('.');
-        const fileType = uriParts[uriParts.length - 1] || 'jpg';
-        formData.append('images', {
-          uri: img.uri,
-          name: `hazard_${i}.${fileType}`,
-          type: `image/${fileType}`,
-        } as any);
+      await reportsApi.createReport({
+        title: title.trim(),
+        description: description.trim(),
+        category,
+        address: address.trim(),
+        latitude: location?.lat,
+        longitude: location?.lng,
+        faculty: !isStudent && selectedFaculty ? selectedFaculty : undefined,
+        images: uploadedImages,
       });
-
-      await reportsApi.createReport(formData);
       ToastService.success('Report Submitted', 'Your hazard report has been received.');
       navigation.goBack();
     } catch (err: any) {
-      setErrorAndScroll(err.response?.data?.message || 'Failed to submit report');
+      const msg = err.message || err.response?.data?.message || 'Failed to submit report';
+      setErrorAndScroll(msg);
     } finally { setLoading(false); }
   };
 

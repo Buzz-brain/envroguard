@@ -5,18 +5,30 @@ import { API_BASE_URL } from '../constants';
 let sessionExpiredHandler: (() => void) | null = null;
 let isRefreshing = false;
 let isSessionExpired = false;
+let failedQueue: Array<{
+  resolve: (token: string) => void;
+  reject: (err: unknown) => void;
+}> = [];
 
-export function onSessionExpired(handler: () => void) {
-  sessionExpiredHandler = handler;
+function processQueue(error: unknown, token: string | null) {
+  failedQueue.forEach(({ resolve, reject }) => {
+    if (error || !token) {
+      reject(error);
+    } else {
+      resolve(token);
+    }
+  });
+  failedQueue = [];
 }
 
-export function setSessionExpiredHandler(handler: () => void) {
+export function onSessionExpired(handler: () => void) {
   sessionExpiredHandler = handler;
 }
 
 export function resetSessionState() {
   isSessionExpired = false;
   isRefreshing = false;
+  failedQueue = [];
 }
 
 const api = axios.create({
@@ -67,7 +79,12 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       if (isRefreshing) {
-        return Promise.reject(error);
+        return new Promise<string>((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        }).then(token => {
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          return api(originalRequest);
+        }).catch(() => Promise.reject(error));
       }
 
       isRefreshing = true;
@@ -75,6 +92,7 @@ api.interceptors.response.use(
         const refreshToken = await getItem('refreshToken');
         if (!refreshToken) {
           isSessionExpired = true;
+          processQueue(error, null);
           sessionExpiredHandler?.();
           return Promise.reject(error);
         }
@@ -82,9 +100,11 @@ api.interceptors.response.use(
         const { accessToken, refreshToken: newRefresh } = data.data;
         await setItem('accessToken', accessToken);
         await setItem('refreshToken', newRefresh);
+        processQueue(null, accessToken);
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         return api(originalRequest);
-      } catch {
+      } catch (refreshError) {
+        processQueue(refreshError, null);
         isSessionExpired = true;
         sessionExpiredHandler?.();
       } finally {
