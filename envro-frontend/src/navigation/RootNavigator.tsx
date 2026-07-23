@@ -11,8 +11,6 @@ import OnboardingScreen from '../screens/launch/OnboardingScreen';
 import WelcomeRoleScreen from '../screens/launch/WelcomeRoleScreen';
 import { getItem } from '../utils/storage';
 
-import LandingScreen from '../screens/auth/LandingScreen';
-import RoleSelectScreen from '../screens/auth/RoleSelectScreen';
 import StudentLoginScreen from '../screens/auth/StudentLoginScreen';
 import AdminLoginScreen from '../screens/auth/AdminLoginScreen';
 import StudentRegisterScreen from '../screens/auth/StudentRegisterScreen';
@@ -34,8 +32,6 @@ const AuthStack = createStackNavigator();
 function AuthScreens() {
   return (
     <AuthStack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
-      <AuthStack.Screen name="Landing" component={LandingScreen} />
-      <AuthStack.Screen name="RoleSelect" component={RoleSelectScreen} />
       <AuthStack.Screen name="StudentLogin" component={StudentLoginScreen} />
       <AuthStack.Screen name="StudentRegister" component={StudentRegisterScreen} />
       <AuthStack.Screen name="AdminLogin" component={AdminLoginScreen} />
@@ -120,9 +116,9 @@ function AppContent() {
           </>
         ) : (
           <>
+            <RootStack.Screen name="WelcomeRole" component={WelcomeRoleScreen} />
             <RootStack.Screen name="AuthFlow" component={AuthScreens} />
             <RootStack.Screen name="Onboarding" component={OnboardingScreen} />
-            <RootStack.Screen name="WelcomeRole" component={WelcomeRoleScreen} />
           </>
         )}
       </RootStack.Navigator>

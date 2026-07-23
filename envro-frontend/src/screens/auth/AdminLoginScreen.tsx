@@ -139,7 +139,7 @@ export default function AdminLoginScreen({ navigation }: any) {
         </View>
 
         <View style={styles.footer}>
-          <TouchableOpacity onPress={() => navigation.navigate('RoleSelect')}>
+          <TouchableOpacity onPress={() => navigation.navigate('WelcomeRole')}>
             <Text style={styles.footerLink}>Back to role selection</Text>
           </TouchableOpacity>
         </View>
