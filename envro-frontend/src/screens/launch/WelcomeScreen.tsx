@@ -27,7 +27,7 @@ export default function WelcomeScreen({ navigation }: any) {
   const handleContinue = async () => {
     SoundService.info();
     hapticFeedback.light();
-    navigation.navigate('Auth', { screen: 'RoleSelect' });
+    navigation.navigate('AuthFlow', { screen: 'RoleSelect' });
   };
 
   return (

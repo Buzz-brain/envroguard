@@ -16,7 +16,7 @@ const show = (type: ToastType, title: string, message?: string) => {
     type,
     text1: title,
     text2: message,
-    visibilityTime: 3000,
+    visibilityTime: 5000,
     position: 'top',
     topOffset: 60,
   });

@@ -51,7 +51,7 @@ export default function WelcomeRoleScreen({ navigation }: any) {
   const handleRolePress = (route: string) => {
     hapticFeedback.light();
     SoundService.info();
-    navigation.navigate('Auth', { screen: route });
+    navigation.navigate('AuthFlow', { screen: route });
   };
 
   return (

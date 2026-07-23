@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
-import { NavigationContainer, useNavigation } from '@react-navigation/native';
+import { NavigationContainer } from '@react-navigation/native';
 import { navigationRef } from '../utils/navigation';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useAuth } from '../contexts/AuthContext';
@@ -12,6 +12,7 @@ import WelcomeRoleScreen from '../screens/launch/WelcomeRoleScreen';
 import { getItem } from '../utils/storage';
 
 import LandingScreen from '../screens/auth/LandingScreen';
+import RoleSelectScreen from '../screens/auth/RoleSelectScreen';
 import StudentLoginScreen from '../screens/auth/StudentLoginScreen';
 import AdminLoginScreen from '../screens/auth/AdminLoginScreen';
 import StudentRegisterScreen from '../screens/auth/StudentRegisterScreen';
@@ -34,33 +35,13 @@ function AuthScreens() {
   return (
     <AuthStack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
       <AuthStack.Screen name="Landing" component={LandingScreen} />
+      <AuthStack.Screen name="RoleSelect" component={RoleSelectScreen} />
       <AuthStack.Screen name="StudentLogin" component={StudentLoginScreen} />
       <AuthStack.Screen name="StudentRegister" component={StudentRegisterScreen} />
       <AuthStack.Screen name="AdminLogin" component={AdminLoginScreen} />
       <AuthStack.Screen name="AdminRegister" component={AdminRegisterScreen} />
       <AuthStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
     </AuthStack.Navigator>
-  );
-}
-
-function AutoAuthScreen() {
-  const called = useRef(false);
-  const navigation = useNavigation<any>();
-
-  useEffect(() => {
-    if (called.current) return;
-    called.current = true;
-
-    getItem('lastRole').then((role) => {
-      const target = role === 'student' ? 'StudentLogin' : 'AdminLogin';
-      navigation.navigate('AuthFlow', { screen: target, params: { autoRole: role } });
-    });
-  }, [navigation]);
-
-  return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FAFAFA' }}>
-      <ActivityIndicator size="large" color="#059669" />
-    </View>
   );
 }
 
@@ -136,11 +117,9 @@ function AppContent() {
             <RootStack.Screen name="Onboarding" component={OnboardingScreen} />
             <RootStack.Screen name="WelcomeRole" component={WelcomeRoleScreen} />
             <RootStack.Screen name="AuthFlow" component={AuthScreens} />
-            <RootStack.Screen name="AutoAuth" component={AutoAuthScreen} />
           </>
         ) : (
           <>
-            <RootStack.Screen name="AutoAuth" component={AutoAuthScreen} />
             <RootStack.Screen name="AuthFlow" component={AuthScreens} />
             <RootStack.Screen name="Onboarding" component={OnboardingScreen} />
             <RootStack.Screen name="WelcomeRole" component={WelcomeRoleScreen} />
