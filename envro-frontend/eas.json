@@ -8,7 +8,9 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://envroguard.onrender.com/api/v1"
+        "EXPO_PUBLIC_API_URL": "https://envroguard.onrender.com/api/v1",
+        "EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME": "df2q6gyuq",
+        "EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET": "enviro-guard-unsigned"
       }
     },
     "production": {
@@ -16,7 +18,9 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://envroguard.onrender.com/api/v1"
+        "EXPO_PUBLIC_API_URL": "https://envroguard.onrender.com/api/v1",
+        "EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME": "df2q6gyuq",
+        "EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET": "enviro-guard-unsigned"
       }
     }
   },
