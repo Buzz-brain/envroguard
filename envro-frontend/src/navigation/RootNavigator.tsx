@@ -105,7 +105,7 @@ function AppContent() {
 
   return (
     <NavigationContainer ref={navigationRef} theme={theme}>
-      <RootStack.Navigator screenOptions={{ headerShown: false }}>
+      <RootStack.Navigator screenOptions={{ headerShown: false }} key={isAuthenticated && user ? 'auth' : 'guest'}>
         {isAuthenticated && user ? (
           <RootStack.Screen name="Main" component={getTabForRole(user.role)} />
         ) : !hasOnboarded ? (

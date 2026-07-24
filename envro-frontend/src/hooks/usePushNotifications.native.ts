@@ -59,17 +59,33 @@ export function usePushNotifications() {
           const { status } = await Notifications.requestPermissionsAsync();
           finalStatus = status;
         }
-        if (finalStatus !== 'granted') return;
+        if (finalStatus !== 'granted') {
+          console.log('[Push] Notification permission denied');
+          return;
+        }
 
-        const tokenData = await Notifications.getExpoPushTokenAsync();
+        console.log('[Push] Permission granted, getting Expo push token...');
+        let tokenData;
+        try {
+          const Constants = require('expo-constants').default;
+          const projectId = Constants?.expoConfig?.extra?.eas?.projectId;
+          tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+        } catch {
+          tokenData = await Notifications.getExpoPushTokenAsync();
+        }
         const token = tokenData.data;
+        console.log('[Push] Got token:', token);
 
         if (!isMounted) return;
         setExpoPushToken(token);
 
         const platform = Platform.OS === 'web' ? 'web' : Platform.OS === 'ios' ? 'ios' : 'android';
+        console.log('[Push] Registering token with backend...');
         await deviceTokensApi.register(token, platform);
-      } catch {}
+        console.log('[Push] Token registered successfully');
+      } catch (err: any) {
+        console.log('[Push] Registration failed:', err?.message || err);
+      }
     }
 
     register();
