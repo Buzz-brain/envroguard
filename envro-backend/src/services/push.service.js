@@ -21,7 +21,7 @@ async function getClient() {
   const sdk = await ensureExpo();
   if (!sdk) return null;
   if (!expoClient) {
-    expoClient = new sdk.Expo();
+    expoClient = new sdk();
   }
   return expoClient;
 }
@@ -45,7 +45,7 @@ export async function sendPushNotification(recipientId, recipientModel, title, m
     if (tokens.length === 0) return;
 
     const messages = tokens
-      .filter(t => sdk.Expo.isExpoPushToken(t.token))
+      .filter(t => sdk.isExpoPushToken(t.token))
       .map(t => ({
         to: t.token,
         sound: 'default',
