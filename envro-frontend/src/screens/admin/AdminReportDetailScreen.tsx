@@ -170,7 +170,7 @@ export default function AdminReportDetailScreen({ route, navigation }: any) {
               <Ionicons name="image-outline" size={24} color={colors.primary} />
             </View>
             <Text style={styles.placeholderTitle}>No photo attached</Text>
-            <Text style={styles.placeholderText}>This report was submitted without an image, so the details stay clean and easy to scan.</Text>
+            <Text style={styles.placeholderText}>No image was submitted with this report.</Text>
           </View>
         )}
 
@@ -433,11 +433,12 @@ const getStyles = (c: typeof lightColors) => StyleSheet.create({
   contentNoImage: { paddingTop: spacing.lg },
 
   placeholderCard: {
-    backgroundColor: c.surface,
+    backgroundColor: 'transparent',
     marginHorizontal: spacing.lg,
-    padding: spacing.lg,
+    padding: spacing.xl,
     borderRadius: borderRadius.lg,
-    borderWidth: 1,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
     borderColor: c.border,
     alignItems: 'center',
     marginBottom: spacing.sm,
