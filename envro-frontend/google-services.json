@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "677760839157",
+    "project_id": "enviroguard-e9ff4",
+    "storage_bucket": "enviroguard-e9ff4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:677760839157:android:6346d72256fea9dc6784bc",
+        "android_client_info": {
+          "package_name": "com.buzzbrain.envroguard"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDOYPin7n-Vfhj6B4oOJQ7nswrlzbXc_64"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -30,6 +30,7 @@
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.RECORD_AUDIO"
       ],
+      "googleServicesFile": "./google-services.json",
       "package": "com.buzzbrain.envroguard"
     },
     "web": {
