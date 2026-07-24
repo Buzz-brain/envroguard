@@ -23,7 +23,8 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-      'connect-src': ["'self'", 'https://api.cloudinary.com', 'https://res.cloudinary.com'],
+      'connect-src': ["'self'", 'blob:', 'data:', 'https://api.cloudinary.com', 'https://res.cloudinary.com'],
+      'img-src': ["'self'", 'blob:', 'data:', 'https://res.cloudinary.com'],
     },
   },
 }));
