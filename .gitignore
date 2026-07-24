@@ -5,6 +5,11 @@ node_modules/
 .env
 .env.local
 .env.*.local
+services.json
+envro-frontend/google-services.json
+
+# Firebase local overrides
+envro-frontend/google-services.local.json
 
 # Build output
 dist/

@@ -14,31 +14,47 @@ export default function SessionScreen() {
   return (
     <View style={styles.container}>
       <Animated.Image
-        source={require('../../../proposed-assets/splash-image.png')}
-        style={[styles.leafTopLeft, { opacity: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.4] }) }]}
+        source={require("../../../proposed-assets/splash-image-tr.png")}
+        style={[
+          styles.leafTopLeft,
+          {
+            opacity: fadeAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0, 0.4],
+            }),
+          },
+        ]}
         resizeMode="contain"
       />
       <Animated.Image
-        source={require('../../../proposed-assets/splash-image.png')}
-        style={[styles.leafBottomRight, { opacity: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.4] }) }]}
+        source={require("../../../proposed-assets/splash-image-bl.png")}
+        style={[
+          styles.leafBottomRight,
+          {
+            opacity: fadeAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0, 0.4],
+            }),
+          },
+        ]}
         resizeMode="contain"
       />
 
       <Animated.View style={[styles.topSection, { opacity: fadeAnim }]}>
         <Image
-          source={require('../../../proposed-assets/EnviroGuardIcon.png')}
+          source={require("../../../proposed-assets/EnviroGuardIcon.png")}
           style={styles.logo}
           resizeMode="contain"
         />
-        <View style={{ flexDirection: 'row', marginTop: spacing.md }}>
+        <View style={styles.brandRow}>
           <Text style={styles.titleGreen}>Enviro</Text>
           <Text style={styles.titleBlack}>Guard</Text>
         </View>
       </Animated.View>
 
-      <Animated.View style={[styles.bottomSection, { opacity: fadeAnim }]}>
-        <ActivityIndicator size="large" color="#059669" />
+      <Animated.View style={[styles.bottomSection, { opacity: fadeAnim }]}> 
         <Text style={styles.loadingText}>Checking your session...</Text>
+        <ActivityIndicator size="large" color="#059669" style={styles.loader} />
       </Animated.View>
     </View>
   );
@@ -68,7 +84,11 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: height * 0.1,
+    paddingTop: height * 0.08,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    marginTop: spacing.md,
   },
   logo: {
     width: 100,
@@ -76,22 +96,32 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   titleGreen: {
-    ...typography.h1,
+    fontFamily: 'PlusJakartaSans_700Bold',
     color: '#059669',
     fontSize: 34,
+    lineHeight: 40,
+    includeFontPadding: false,
+    textAlign: 'center',
   },
   titleBlack: {
-    ...typography.h1,
+    fontFamily: 'PlusJakartaSans_700Bold',
     color: '#1F2937',
     fontSize: 34,
+    lineHeight: 40,
+    includeFontPadding: false,
+    textAlign: 'center',
   },
   bottomSection: {
     alignItems: 'center',
-    paddingBottom: height * 0.12,
+    paddingBottom: height * 0.1,
+    marginTop: -spacing.xl,
   },
   loadingText: {
     ...typography.bodySmall,
     color: '#9CA3AF',
-    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  loader: {
+    marginTop: spacing.xs,
   },
 });

@@ -1,41 +1,39 @@
 import { DeviceToken } from '../modules/deviceToken/model.js';
 import { logger } from '../utils/logger.js';
 
-let Expo = null;
+let ExpoClass = undefined;
 
 async function ensureExpo() {
-  if (Expo === null) {
+  if (ExpoClass === undefined) {
     try {
       const mod = await import('expo-server-sdk');
-      Expo = mod.default || mod;
+      ExpoClass = mod.Expo || mod.default?.Expo || mod.default;
     } catch {
-      Expo = undefined;
+      ExpoClass = null;
     }
   }
-  return Expo;
+  return ExpoClass;
 }
 
 let expoClient = null;
 
 async function getClient() {
-  const sdk = await ensureExpo();
-  if (!sdk) return null;
+  const Expo = await ensureExpo();
+  if (!Expo) return null;
   if (!expoClient) {
-    expoClient = new sdk();
+    expoClient = new Expo();
   }
   return expoClient;
 }
 
 export async function sendPushNotification(recipientId, recipientModel, title, message, data = {}) {
-  logger.info(`[Push] Sending "${title}" to ${recipientModel}:${recipientId}`);
-
   const client = await getClient();
-  if (!client) {
+  const Expo = await ensureExpo();
+
+  if (!client || !Expo) {
     logger.warn('[Push] expo-server-sdk not available, skipping push notification');
     return;
   }
-
-  const sdk = await ensureExpo();
 
   try {
     const tokens = await DeviceToken.find({
@@ -44,17 +42,15 @@ export async function sendPushNotification(recipientId, recipientModel, title, m
       isActive: true,
     });
 
-    logger.info(`[Push] Found ${tokens.length} active device token(s)`);
+    logger.info(`[Push] Found ${tokens.length} active device token(s) for ${recipientModel}:${recipientId}`);
 
     if (tokens.length === 0) return;
 
-    const validTokens = tokens.filter(t => sdk.isExpoPushToken(t.token));
-    const invalidTokens = tokens.filter(t => !sdk.isExpoPushToken(t.token));
+    const validTokens = tokens.filter(t => Expo.isExpoPushToken(t.token));
+    const invalidTokens = tokens.filter(t => !Expo.isExpoPushToken(t.token));
 
     if (invalidTokens.length > 0) {
-      logger.warn(`[Push] ${invalidTokens.length} invalid token(s) skipped`, {
-        invalidTokens: invalidTokens.map(t => t.token.substring(0, 30) + '...'),
-      });
+      logger.warn(`[Push] ${invalidTokens.length} invalid token(s) skipped`);
     }
 
     const messages = validTokens

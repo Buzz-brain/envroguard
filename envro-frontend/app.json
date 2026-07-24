@@ -18,10 +18,11 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
-        "backgroundImage": "./assets/android-icon-background.png",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
+      "notificationIcon": "./assets/shield-only.png",
+      "notificationColor": "#FFFFFF",
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.CAMERA",
