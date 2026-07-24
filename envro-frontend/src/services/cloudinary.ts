@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
 
 const CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
 const UPLOAD_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
@@ -20,34 +21,40 @@ const getMimeType = (uri: string): string => {
   return mimeMap[ext] || 'image/jpeg';
 };
 
+const toBase64DataUri = async (uri: string): Promise<string> => {
+  if (Platform.OS === 'web') {
+    const response = await fetch(uri);
+    const blob = await response.blob();
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+  const base64 = await FileSystem.readAsStringAsync(uri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+  const mimeType = getMimeType(uri);
+  return `data:${mimeType};base64,${base64}`;
+};
+
 export const uploadToCloudinary = async (uri: string): Promise<CloudinaryImage> => {
   if (!CLOUD_NAME || !UPLOAD_PRESET) {
     throw new Error('Cloudinary configuration missing. Check app settings.');
   }
 
-  const formData = new FormData();
-  const mimeType = getMimeType(uri);
-  const fileName = `hazard_${Date.now()}.jpg`;
+  const dataUri = await toBase64DataUri(uri);
 
-  if (Platform.OS === 'web') {
-    const response = await fetch(uri);
-    const blob = await response.blob();
-    const file = new File([blob], fileName, { type: mimeType });
-    formData.append('file', file);
-  } else {
-    formData.append('file', {
-      uri,
-      type: mimeType,
-      name: fileName,
-    } as any);
-  }
-
-  formData.append('upload_preset', UPLOAD_PRESET);
-  formData.append('public_id', `reports/hazard_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+  const body = new URLSearchParams();
+  body.append('file', dataUri);
+  body.append('upload_preset', UPLOAD_PRESET);
+  body.append('public_id', `reports/hazard_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
 
   const response = await fetch(UPLOAD_URL, {
     method: 'POST',
-    body: formData,
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
   });
 
   if (!response.ok) {

@@ -66,6 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    resetSessionState();
     try { await authApi.logout(); } catch {}
     await deleteItem('accessToken');
     await deleteItem('refreshToken');

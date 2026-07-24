@@ -26,6 +26,8 @@ import {
 
 type Phase = 'splash' | 'session' | 'app';
 
+let hasCompletedSplash = false;
+
 const RootStack = createStackNavigator();
 const AuthStack = createStackNavigator();
 
@@ -54,7 +56,7 @@ function getTabForRole(role: string) {
 function AppContent() {
   const colors = useColors();
   const { isAuthenticated, isLoading, user } = useAuth();
-  const [phase, setPhase] = useState<Phase>('splash');
+  const [phase, setPhase] = useState<Phase>(hasCompletedSplash ? 'app' : 'splash');
   const [hasOnboarded, setHasOnboarded] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -65,6 +67,7 @@ function AppContent() {
 
   useEffect(() => {
     if (phase === 'session' && !isLoading && hasOnboarded !== null) {
+      hasCompletedSplash = true;
       setPhase('app');
     }
   }, [phase, isLoading, hasOnboarded]);
