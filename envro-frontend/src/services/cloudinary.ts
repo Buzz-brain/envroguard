@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import * as FileSystem from 'expo-file-system';
 
 const CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
 const UPLOAD_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
@@ -20,10 +21,21 @@ const getMimeType = (uri: string): string => {
   return mimeMap[ext] || 'image/jpeg';
 };
 
-const toWebFile = async (uri: string): Promise<File> => {
-  const response = await fetch(uri);
-  const blob = await response.blob();
-  return new File([blob], `hazard_${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' });
+const toBlob = async (uri: string): Promise<Blob> => {
+  if (Platform.OS === 'web') {
+    const response = await fetch(uri);
+    return response.blob();
+  }
+  const base64 = await FileSystem.readAsStringAsync(uri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+  const mimeType = getMimeType(uri);
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new Blob([bytes], { type: mimeType });
 };
 
 export const uploadToCloudinary = async (uri: string): Promise<CloudinaryImage> => {
@@ -33,16 +45,15 @@ export const uploadToCloudinary = async (uri: string): Promise<CloudinaryImage> 
 
   const formData = new FormData();
   const mimeType = getMimeType(uri);
+  const fileName = `hazard_${Date.now()}.jpg`;
+
+  const blob = await toBlob(uri);
 
   if (Platform.OS === 'web') {
-    const file = await toWebFile(uri);
+    const file = new File([blob], fileName, { type: mimeType });
     formData.append('file', file);
   } else {
-    formData.append('file', {
-      uri,
-      type: mimeType,
-      name: `hazard_${Date.now()}.jpg`,
-    } as any);
+    formData.append('file', blob, fileName);
   }
 
   formData.append('upload_preset', UPLOAD_PRESET);
