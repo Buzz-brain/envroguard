@@ -29,6 +29,22 @@ import type { Faculty } from '../../types';
 const { width } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';
 
+const blobToDataUrl = (blobUrl: string): Promise<string> =>
+  fetch(blobUrl)
+    .then(r => r.blob())
+    .then(
+      blob =>
+        new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        }),
+    );
+
+const resolveUri = (uri: string): Promise<string> =>
+  isWeb && uri.startsWith('blob:') ? blobToDataUrl(uri) : Promise.resolve(uri);
+
 export default function ReportHazardScreen({ navigation, route }: any) {
   const colors = useColors();
   const styles = getStyles(colors);
@@ -91,7 +107,8 @@ export default function ReportHazardScreen({ navigation, route }: any) {
         ? await ImagePicker.launchCameraAsync(options)
         : await ImagePicker.launchImageLibraryAsync(options);
       if (!result.canceled) {
-        setImages([...images, ...result.assets.map(a => ({ uri: a.uri }))]);
+        const resolved = await Promise.all(result.assets.map(a => resolveUri(a.uri)));
+        setImages([...images, ...resolved.map(uri => ({ uri }))]);
       }
     } catch {}
   };

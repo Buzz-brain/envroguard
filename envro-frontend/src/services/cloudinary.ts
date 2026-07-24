@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 const CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
 const UPLOAD_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
 const UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`;
@@ -18,17 +20,31 @@ const getMimeType = (uri: string): string => {
   return mimeMap[ext] || 'image/jpeg';
 };
 
+const toWebFile = async (uri: string): Promise<File> => {
+  const response = await fetch(uri);
+  const blob = await response.blob();
+  return new File([blob], `hazard_${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' });
+};
+
 export const uploadToCloudinary = async (uri: string): Promise<CloudinaryImage> => {
   if (!CLOUD_NAME || !UPLOAD_PRESET) {
     throw new Error('Cloudinary configuration missing. Check app settings.');
   }
 
   const formData = new FormData();
-  formData.append('file', {
-    uri,
-    type: getMimeType(uri),
-    name: `hazard_${Date.now()}.jpg`,
-  } as any);
+  const mimeType = getMimeType(uri);
+
+  if (Platform.OS === 'web') {
+    const file = await toWebFile(uri);
+    formData.append('file', file);
+  } else {
+    formData.append('file', {
+      uri,
+      type: mimeType,
+      name: `hazard_${Date.now()}.jpg`,
+    } as any);
+  }
+
   formData.append('upload_preset', UPLOAD_PRESET);
   formData.append('public_id', `reports/hazard_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
 
