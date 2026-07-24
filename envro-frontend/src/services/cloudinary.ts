@@ -1,5 +1,4 @@
 import { Platform } from 'react-native';
-import * as FileSystem from 'expo-file-system';
 
 const CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
 const UPLOAD_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
@@ -21,23 +20,6 @@ const getMimeType = (uri: string): string => {
   return mimeMap[ext] || 'image/jpeg';
 };
 
-const toBlob = async (uri: string): Promise<Blob> => {
-  if (Platform.OS === 'web') {
-    const response = await fetch(uri);
-    return response.blob();
-  }
-  const base64 = await FileSystem.readAsStringAsync(uri, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
-  const mimeType = getMimeType(uri);
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return new Blob([bytes], { type: mimeType });
-};
-
 export const uploadToCloudinary = async (uri: string): Promise<CloudinaryImage> => {
   if (!CLOUD_NAME || !UPLOAD_PRESET) {
     throw new Error('Cloudinary configuration missing. Check app settings.');
@@ -47,13 +29,17 @@ export const uploadToCloudinary = async (uri: string): Promise<CloudinaryImage> 
   const mimeType = getMimeType(uri);
   const fileName = `hazard_${Date.now()}.jpg`;
 
-  const blob = await toBlob(uri);
-
   if (Platform.OS === 'web') {
+    const response = await fetch(uri);
+    const blob = await response.blob();
     const file = new File([blob], fileName, { type: mimeType });
     formData.append('file', file);
   } else {
-    formData.append('file', blob, fileName);
+    formData.append('file', {
+      uri,
+      type: mimeType,
+      name: fileName,
+    } as any);
   }
 
   formData.append('upload_preset', UPLOAD_PRESET);
@@ -88,7 +74,6 @@ export const uploadMultipleToCloudinary = async (
       results.push(result);
       onProgress?.(i + 1, uris.length);
     } catch (error) {
-      // Rollback: delete already uploaded images
       for (const uploaded of results) {
         try {
           await deleteFromCloudinary(uploaded.publicId);

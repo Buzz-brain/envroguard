@@ -46,7 +46,7 @@ const statusColors: Record<string, string> = {
   resolved: '#10B981',
 };
 
-export default function ReportDetailScreen({ route }: any) {
+export default function ReportDetailScreen({ route, navigation }: any) {
   const colors = useColors();
   const styles = getStyles(colors);
   const { reportId } = route.params;
@@ -58,6 +58,9 @@ export default function ReportDetailScreen({ route }: any) {
   const [imageLoading, setImageLoading] = useState(true);
 
   useEffect(() => { fetchReport(); }, [reportId]);
+  useEffect(() => {
+    setImageLoading(true);
+  }, [currentImageIndex]);
 
   const fetchReport = async () => {
     setLoading(true); setError(null);
@@ -75,18 +78,39 @@ export default function ReportDetailScreen({ route }: any) {
 
   const catColor = cc[report.category] || '#6B7280';
   const images = report.images || [];
+  const hasImages = images.length > 0;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, !hasImages && styles.contentNoImage]}
+      showsVerticalScrollIndicator={false}
+    >
+      <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+        <Ionicons name="arrow-back" size={22} color={colors.text} />
+      </TouchableOpacity>
+
+      {!hasImages && (
+        <View style={styles.placeholderCard}>
+          <View style={[styles.placeholderIcon, { backgroundColor: colors.primaryBg }]}> 
+            <Ionicons name="image-outline" size={24} color={colors.primary} />
+          </View>
+          <Text style={styles.placeholderTitle}>No photo attached</Text>
+          <Text style={styles.placeholderText}>This report was submitted without an image, so the details stay clean and easy to scan.</Text>
+        </View>
+      )}
       {/* ── Image Carousel ── */}
-      {images.length > 0 && (
+      {hasImages && (
         <View style={styles.imageSection}>
           <TouchableOpacity activeOpacity={1} onPress={() => setPreviewImage(images[currentImageIndex].url)}>
             <Image
+              key={images[currentImageIndex]?.url || currentImageIndex}
               source={{ uri: images[currentImageIndex].url }}
               style={styles.mainImage}
               onLoadStart={() => setImageLoading(true)}
+              onLoad={() => setImageLoading(false)}
               onLoadEnd={() => setImageLoading(false)}
+              onError={() => setImageLoading(false)}
             />
             {imageLoading && (
               <View style={styles.imageLoader}>
@@ -116,7 +140,7 @@ export default function ReportDetailScreen({ route }: any) {
       )}
 
       {/* ── Hero Info ── */}
-      <View style={styles.heroCard}>
+      <View style={[styles.heroCard, !hasImages && styles.heroCardNoImage]}>
         <View style={styles.heroTop}>
           <View style={[styles.catIconWrap, { backgroundColor: colors.primaryBg }]}>
             <Ionicons name={catIcons[report.category] as any} size={24} color={colors.primary} />
@@ -229,6 +253,54 @@ export default function ReportDetailScreen({ route }: any) {
 const getStyles = (c: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: c.background },
   content: { paddingTop: spacing.md },
+  contentNoImage: { paddingTop: spacing.lg },
+
+  backButton: {
+    position: 'absolute',
+    top: spacing.md,
+    left: spacing.md,
+    zIndex: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+
+  placeholderCard: {
+    backgroundColor: c.surface,
+    marginHorizontal: spacing.lg,
+    padding: spacing.lg,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: c.border,
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  placeholderIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  placeholderTitle: {
+    ...typography.h4,
+    color: c.text,
+    marginTop: spacing.md,
+  },
+  placeholderText: {
+    ...typography.bodySmall,
+    color: c.textSecondary,
+    textAlign: 'center',
+    marginTop: spacing.xs,
+  },
 
   // ── Image ──
   imageSection: {
@@ -294,6 +366,9 @@ const getStyles = (c: typeof lightColors) => StyleSheet.create({
     padding: spacing.lg,
     borderWidth: 1,
     borderColor: c.border,
+  },
+  heroCardNoImage: {
+    marginTop: spacing.md,
   },
   heroTop: {
     flexDirection: 'row',

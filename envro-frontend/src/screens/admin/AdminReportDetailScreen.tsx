@@ -77,6 +77,9 @@ export default function AdminReportDetailScreen({ route, navigation }: any) {
   const [imageLoading, setImageLoading] = useState(true);
 
   useEffect(() => { fetchReport(); }, [reportId]);
+  useEffect(() => {
+    setImageLoading(true);
+  }, [reportId]);
 
   const fetchReport = async () => {
     setLoading(true); setError(null);
@@ -147,20 +150,32 @@ export default function AdminReportDetailScreen({ route, navigation }: any) {
   const canAssign = user?.role === 'environmentalAdmin';
   const catColor = cc[report.category] || '#6B7280';
   const images = report.images || [];
+  const hasImages = images.length > 0;
 
   return (
     <View style={styles.root}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[styles.content, images.length === 0 && styles.contentNoImage]}
+        showsVerticalScrollIndicator={false}
+      >
         {/* ── Back Button ── */}
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
           <Ionicons name="arrow-back" size={22} color={colors.text} />
         </TouchableOpacity>
 
-        {/* ── Top spacer when no image (clears the fixed back button) ── */}
-        {images.length === 0 && <View style={{ height: spacing.xxxl + 24 }} />}
+        {!hasImages && (
+          <View style={styles.placeholderCard}>
+            <View style={[styles.placeholderIcon, { backgroundColor: colors.primaryBg }]}> 
+              <Ionicons name="image-outline" size={24} color={colors.primary} />
+            </View>
+            <Text style={styles.placeholderTitle}>No photo attached</Text>
+            <Text style={styles.placeholderText}>This report was submitted without an image, so the details stay clean and easy to scan.</Text>
+          </View>
+        )}
 
         {/* ── Image ── */}
-        {images.length > 0 && (
+        {hasImages && (
           <View style={styles.imageSection}>
             <TouchableOpacity activeOpacity={1} onPress={() => setPreviewImage(images[0].url)}>
               <Image
@@ -185,7 +200,7 @@ export default function AdminReportDetailScreen({ route, navigation }: any) {
         )}
 
         {/* ── Hero Info ── */}
-        <View style={styles.heroCard}>
+        <View style={[styles.heroCard, !hasImages && styles.heroCardNoImage]}>
           <View style={styles.heroTop}>
             <View style={[styles.catIconWrap, { backgroundColor: colors.primaryBg }]}>
               <Ionicons name={catIcons[report.category] as any} size={24} color={colors.primary} />
@@ -415,6 +430,36 @@ const getStyles = (c: typeof lightColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: c.background },
   container: { flex: 1 },
   content: { paddingTop: spacing.lg, paddingBottom: spacing.xxl },
+  contentNoImage: { paddingTop: spacing.lg },
+
+  placeholderCard: {
+    backgroundColor: c.surface,
+    marginHorizontal: spacing.lg,
+    padding: spacing.lg,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: c.border,
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  placeholderIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  placeholderTitle: {
+    ...typography.h4,
+    color: c.text,
+    marginTop: spacing.md,
+  },
+  placeholderText: {
+    ...typography.bodySmall,
+    color: c.textSecondary,
+    textAlign: 'center',
+    marginTop: spacing.xs,
+  },
 
   // ── Back Button ──
   backBtn: {
@@ -465,6 +510,9 @@ const getStyles = (c: typeof lightColors) => StyleSheet.create({
     padding: spacing.lg,
     borderWidth: 1,
     borderColor: c.border,
+  },
+  heroCardNoImage: {
+    marginTop: spacing.md,
   },
   heroTop: {
     flexDirection: 'row',
