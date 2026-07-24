@@ -21,8 +21,6 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "notificationIcon": "./assets/shield-only.png",
-      "notificationColor": "#FFFFFF",
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.CAMERA",
@@ -43,7 +41,8 @@
       [
         "expo-notifications",
         {
-          "color": "#059669"
+          "icon": "./assets/shield-only.png",
+          "color": "#FFFFFF"
         }
       ]
     ],
