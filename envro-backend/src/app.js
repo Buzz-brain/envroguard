@@ -19,7 +19,14 @@ const app = express();
 app.set('trust proxy', 1);
 
 // ─── Security & Middleware ─────────────────────────────────────────────
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+      'connect-src': ["'self'", 'https://api.cloudinary.com', 'https://res.cloudinary.com'],
+    },
+  },
+}));
 
 app.use(
   cors({
