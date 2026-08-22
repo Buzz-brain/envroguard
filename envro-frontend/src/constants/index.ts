@@ -44,6 +44,13 @@ declare const process: {
 export const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_URL || FALLBACK_API_BASE_URL;
 
+if (typeof console !== 'undefined') {
+  // Temporary debug: confirm which API base URL the app uses at runtime
+  // Remove this after verification
+  // eslint-disable-next-line no-console
+  console.log('API_BASE_URL =', API_BASE_URL);
+}
+
 export const categoryColors: Record<string, string> = {
   Flooding: '#0EA5E9',
   'Waste Dumping': '#65A30D',
