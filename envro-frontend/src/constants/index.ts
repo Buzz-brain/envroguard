@@ -34,7 +34,7 @@ import { Platform } from 'react-native';
 
 const FALLBACK_API_BASE_URL = Platform.select({
   web: 'http://localhost:5000/api/v1',
-  default: 'https://envroguard.onrender.com/api/v1',
+  default: 'https://envroguard-tmjk.onrender.com/api/v1',
 });
 
 declare const process: {
