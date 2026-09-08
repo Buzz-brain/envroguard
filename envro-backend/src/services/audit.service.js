@@ -10,6 +10,8 @@ const roleModelMap = {
 
 const roleToModel = (role) => roleModelMap[role] || 'System';
 
+const VALID_ACTOR_MODELS = ['StudentAccount', 'DepartmentAdmin', 'FacultyAdmin', 'EnvironmentalAdmin'];
+
 export const createAuditLog = async ({
   actor,
   actorModel,
@@ -24,9 +26,10 @@ export const createAuditLog = async ({
   userAgent,
 }) => {
   try {
+    const resolvedModel = actorModel || 'System';
     await AuditLog.create({
-      actor: actor || null,
-      actorModel: actorModel || 'System',
+      actor: actor && VALID_ACTOR_MODELS.includes(resolvedModel) ? actor : null,
+      actorModel: resolvedModel,
       actorName: actorName || '',
       action,
       entityType,
