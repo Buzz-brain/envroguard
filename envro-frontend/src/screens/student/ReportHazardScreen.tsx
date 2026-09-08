@@ -127,6 +127,7 @@ export default function ReportHazardScreen({ navigation, route }: any) {
     if (!description.trim()) { setErrorAndScroll('Description is required'); return; }
     if (!category) { setErrorAndScroll('Select a hazard category'); return; }
     if (!address.trim()) { setErrorAndScroll('Location address is required'); return; }
+    if (!location) { setErrorAndScroll('Unable to get your location. Please enable location access and try again.'); return; }
 
     setLoading(true); setError(null);
     try {
@@ -246,11 +247,16 @@ export default function ReportHazardScreen({ navigation, route }: any) {
           />
         </View>
 
-        {location && (
+        {location ? (
           <View style={styles.locationDetected}>
             <Ionicons name="checkmark-circle" size={14} color={colors.success} />
             <Text style={[typography.caption, { color: colors.success, marginLeft: 4 }]}>Location detected automatically</Text>
           </View>
+        ) : (
+          <TouchableOpacity style={styles.locationDetected} onPress={getLocation}>
+            <Ionicons name="refresh-outline" size={14} color={colors.secondary} />
+            <Text style={[typography.caption, { color: colors.secondary, marginLeft: 4 }]}>Location not detected. Tap to retry</Text>
+          </TouchableOpacity>
         )}
 
         {/* ── Faculty & Department (auto-filled for students) ── */}
