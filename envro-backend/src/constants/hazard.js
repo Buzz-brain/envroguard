@@ -27,6 +27,7 @@ export const TIMELINE_EVENT_TYPES = {
   REPORT_ASSIGNED: 'report_assigned',
   COMMENT_ADDED: 'comment_added',
   IMAGE_ADDED: 'image_added',
+  REPORT_EDITED: 'report_edited',
 };
 
 export const NOTIFICATION_TYPES = {

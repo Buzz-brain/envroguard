@@ -58,6 +58,18 @@ export const addReportSubmittedEvent = async (reportId, actor, studentName) => {
   });
 };
 
+export const addReportEditedEvent = async (reportId, actor, studentName, changedFields) => {
+  await addTimelineEvent({
+    reportId,
+    eventType: TIMELINE_EVENT_TYPES.REPORT_EDITED,
+    description: 'Report details updated by reporter',
+    actor,
+    actorModel: 'StudentAccount',
+    actorName: studentName || 'Student',
+    metadata: { changedFields: changedFields || [] },
+  });
+};
+
 export const addStatusChangedEvent = async (reportId, status, actor, actorModel, actorName, note) => {
   const statusLabels = {
     pending: 'Pending',

@@ -141,8 +141,15 @@ export default function DashboardScreen({ navigation }: any) {
             : facultiesApi.getAll(),
         ]);
         if (reportRes.data.success) {
+          const r = reportRes.data.data;
           setStats({
-            ...reportRes.data.data,
+            totalReports: r.total ?? 0,
+            pendingReports: r.pending ?? 0,
+            inProgressReports: r.inProgress ?? 0,
+            resolvedReports: r.resolved ?? 0,
+            reportsByCategory: r.byCategory || [],
+            reportsByStatus: r.byStatus || [],
+            recentReports: r.recentReports || [],
             totalStudents: studentRes.data?.data?.total ?? studentRes.data?.data?.length ?? 0,
             totalFaculties: isFacultyScoped ? 0 : (orgRes.data?.data?.length ?? 0),
             totalDepartments: isFacultyScoped ? (orgRes.data?.data?.length ?? 0) : undefined,

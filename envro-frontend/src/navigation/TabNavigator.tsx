@@ -47,6 +47,7 @@ function ReportsStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="MyReportsList" component={MyReports} />
       <Stack.Screen name="ReportDetail" component={StudentReportDetail} />
+      <Stack.Screen name="ReportHazard" component={ReportHazard} />
     </Stack.Navigator>
   );
 }

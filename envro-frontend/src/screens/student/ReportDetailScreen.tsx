@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { ImagePreview } from '../../components/ui/ImagePreview';
 import { ErrorState } from '../../components/ui/ErrorState';
@@ -57,7 +58,7 @@ export default function ReportDetailScreen({ route, navigation }: any) {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(true);
 
-  useEffect(() => { fetchReport(); }, [reportId]);
+  useFocusEffect(useCallback(() => { fetchReport(); }, [reportId]));
   useEffect(() => {
     setImageLoading(true);
   }, [currentImageIndex]);
@@ -161,6 +162,21 @@ export default function ReportDetailScreen({ route, navigation }: any) {
           </View>
         </View>
       </View>
+
+      {/* ── Edit (pending only) ── */}
+      {report.status === 'pending' && (
+        <View style={styles.editBar}>
+          <TouchableOpacity
+            style={[styles.editButton, { backgroundColor: colors.primary }]}
+            onPress={() => navigation.navigate('ReportHazard', { reportId: report._id, report })}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="create-outline" size={18} color="#FFF" />
+            <Text style={styles.editButtonText}>Edit Report</Text>
+          </TouchableOpacity>
+          <Text style={styles.editHint}>Editable while pending</Text>
+        </View>
+      )}
 
       {/* ── Description ── */}
       <View style={styles.sectionCard}>
@@ -417,6 +433,31 @@ const getStyles = (c: typeof lightColors) => StyleSheet.create({
   heroCategoryText: {
     fontSize: 12,
     fontWeight: '700',
+  },
+
+  // ── Edit ──
+  editBar: {
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
+  editButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+  },
+  editButtonText: {
+    color: '#FFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  editHint: {
+    fontSize: 11,
+    color: c.textTertiary,
+    textAlign: 'center',
+    marginTop: spacing.xs,
   },
 
   // ── Section Card ──

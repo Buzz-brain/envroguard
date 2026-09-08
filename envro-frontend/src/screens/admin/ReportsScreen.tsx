@@ -82,9 +82,9 @@ export default function ReportsScreen({ navigation, route }: any) {
       const { data } = await reportsApi.getReportStats();
       if (data.success) {
         setReportStats({
-          pending: data.data.pendingReports ?? 0,
-          active: data.data.inProgressReports ?? 0,
-          resolved: data.data.resolvedReports ?? 0,
+          pending: data.data.pending ?? 0,
+          active: data.data.inProgress ?? 0,
+          resolved: data.data.resolved ?? 0,
         });
       }
     } catch {}
