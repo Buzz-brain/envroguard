@@ -53,6 +53,61 @@ export const createReport = [
     .withMessage('Image public ID is required'),
 ];
 
+export const updateReport = [
+  param('id').isMongoId().withMessage('Invalid report ID'),
+  body('title')
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage('Report title is required')
+    .isLength({ max: 200 })
+    .withMessage('Title cannot exceed 200 characters'),
+  body('description')
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage('Description is required')
+    .isLength({ max: 2000 })
+    .withMessage('Description cannot exceed 2000 characters'),
+  body('category')
+    .optional()
+    .notEmpty()
+    .withMessage('Hazard category is required')
+    .isIn(HAZARD_CATEGORIES)
+    .withMessage('Invalid hazard category'),
+  body('address')
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage('Location address is required'),
+  body('latitude')
+    .optional()
+    .isFloat({ min: -90, max: 90 })
+    .withMessage('Invalid latitude'),
+  body('longitude')
+    .optional()
+    .isFloat({ min: -180, max: 180 })
+    .withMessage('Invalid longitude'),
+  body('priority')
+    .optional()
+    .isIn(Object.values(REPORT_PRIORITY))
+    .withMessage('Invalid priority level'),
+  body('images')
+    .optional()
+    .isArray({ min: 0, max: 5 })
+    .withMessage('Maximum 5 images allowed'),
+  body('images.*.url')
+    .if(body('images').exists())
+    .notEmpty()
+    .withMessage('Image URL is required')
+    .isURL()
+    .withMessage('Invalid image URL'),
+  body('images.*.publicId')
+    .if(body('images').exists())
+    .notEmpty()
+    .withMessage('Image public ID is required'),
+];
+
 export const updateReportStatus = [
   param('id').isMongoId().withMessage('Invalid report ID'),
   body('status')

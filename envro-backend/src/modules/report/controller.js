@@ -12,6 +12,16 @@ export const createReport = asyncHandler(async (req, res) => {
   return apiResponse(res, 201, 'Report submitted successfully', report);
 });
 
+export const updateReport = asyncHandler(async (req, res) => {
+  const report = await reportService.updateReportService(
+    req.params.id,
+    req.body,
+    req.user.id
+  );
+
+  return apiResponse(res, 200, 'Report updated successfully', report);
+});
+
 export const getAllReports = asyncHandler(async (req, res) => {
   const result = await reportService.getAllReportsService(
     req.query,

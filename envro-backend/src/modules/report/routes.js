@@ -24,6 +24,16 @@ router.post(
 
 router.get('/my-reports', authorize(ROLES.STUDENT), reportController.getMyReports);
 
+// Student: edit own report while it is still pending
+router.put(
+  '/:id',
+  authorize(ROLES.STUDENT),
+  reportValidation.updateReport,
+  validate,
+  logAction('HazardReport', 'update'),
+  reportController.updateReport
+);
+
 // Environmental Admin and Faculty Admin: view reports
 router.get('/stats', authorize(ROLES.ENVIRONMENTAL_ADMIN, ROLES.FACULTY_ADMIN, ROLES.DEPARTMENT_ADMIN), reportController.getReportStats);
 router.get('/', authorize(ROLES.ENVIRONMENTAL_ADMIN, ROLES.FACULTY_ADMIN, ROLES.DEPARTMENT_ADMIN), reportController.getAllReports);

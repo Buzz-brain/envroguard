@@ -6,7 +6,7 @@ import { REPORT_STATUS, NOTIFICATION_TYPES } from '../../constants/hazard.js';
 import { ApiError } from '../../utils/apiError.js';
 import { createNotificationService } from '../notification/service.js';
 import { createAuditLog } from '../../services/audit.service.js';
-import { addReportSubmittedEvent, addStatusChangedEvent, addAssignedEvent } from '../../services/timeline.service.js';
+import { addReportSubmittedEvent, addReportEditedEvent, addStatusChangedEvent, addAssignedEvent } from '../../services/timeline.service.js';
 
 export const createReportService = async (data, studentAccountId) => {
   const studentAccount = await StudentAccount.findById(studentAccountId);
@@ -95,6 +95,95 @@ export const createReportService = async (data, studentAccountId) => {
   });
 
   return populatedReport;
+};
+
+export const updateReportService = async (reportId, data, studentAccountId) => {
+  const report = await HazardReport.findById(reportId);
+
+  if (!report) {
+    throw new ApiError(404, 'Report not found');
+  }
+
+  if (report.reportedBy.toString() !== studentAccountId.toString()) {
+    throw new ApiError(403, 'You can only edit your own reports');
+  }
+
+  if (report.status !== REPORT_STATUS.PENDING) {
+    throw new ApiError(400, 'Reports can only be edited while status is pending');
+  }
+
+  const update = {};
+  const changedFields = [];
+
+  if (data.title !== undefined) {
+    update.title = data.title;
+    changedFields.push('title');
+  }
+  if (data.description !== undefined) {
+    update.description = data.description;
+    changedFields.push('description');
+  }
+  if (data.category !== undefined) {
+    update.category = data.category;
+    changedFields.push('category');
+  }
+  if (data.priority !== undefined) {
+    update.priority = data.priority;
+    changedFields.push('priority');
+  }
+
+  if (data.address !== undefined) {
+    update['location.address'] = data.address;
+    changedFields.push('address');
+  }
+
+  const hasValidCoords =
+    data.latitude !== undefined &&
+    data.longitude !== undefined &&
+    !isNaN(parseFloat(data.latitude)) &&
+    !isNaN(parseFloat(data.longitude));
+
+  if (hasValidCoords) {
+    update['location.coordinates'] = [
+      parseFloat(data.longitude),
+      parseFloat(data.latitude),
+    ];
+    changedFields.push('location');
+  }
+
+  if (Array.isArray(data.images)) {
+    update.images = data.images.map(img => ({ url: img.url, publicId: img.publicId }));
+    changedFields.push('images');
+  }
+
+  if (Object.keys(update).length === 0) {
+    throw new ApiError(400, 'No valid fields to update');
+  }
+
+  Object.assign(report, update);
+  await report.save();
+
+  const studentAccount = await StudentAccount.findById(studentAccountId);
+  const student = studentAccount
+    ? await Student.findOne({ registrationNumber: studentAccount.registrationNumber }).select('fullName')
+    : null;
+  const updatedReport = await HazardReport.findById(report._id)
+    .populate('reportedBy', 'registrationNumber')
+    .populate('faculty', 'name');
+
+  addReportEditedEvent(report._id, studentAccountId, student?.fullName || 'Student', changedFields);
+
+  createAuditLog({
+    actor: studentAccountId,
+    actorModel: 'StudentAccount',
+    action: 'update_report',
+    entityType: 'Report',
+    entityId: report._id,
+    description: `Student edited a "${report.category}" report (${changedFields.join(', ')})`,
+    faculty: report.faculty,
+  });
+
+  return updatedReport;
 };
 
 export const getAllReportsService = async (query, userRole, userFaculty) => {
@@ -266,7 +355,7 @@ export const deleteReportService = async (reportId, actorId) => {
 
 export const getReportStatsService = async (userRole, userFaculty) => {
   const filters = {};
-  if (userRole === 'departmentAdmin' && userFaculty) {
+  if ((userRole === 'departmentAdmin' || userRole === 'facultyAdmin') && userFaculty) {
     filters.faculty = userFaculty;
   }
 
@@ -313,7 +402,7 @@ const buildReportFilters = (query, userRole, userFaculty) => {
   const filters = {};
 
   // Faculty-scoped access
-  if (userRole === 'departmentAdmin' && userFaculty) {
+  if ((userRole === 'departmentAdmin' || userRole === 'facultyAdmin') && userFaculty) {
     filters.faculty = userFaculty;
   }
 

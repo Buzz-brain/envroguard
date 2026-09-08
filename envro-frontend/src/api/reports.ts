@@ -16,9 +16,22 @@ export interface CreateReportPayload {
   images: ReportImageData[];
 }
 
+export interface UpdateReportPayload {
+  title?: string;
+  description?: string;
+  category?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  images?: ReportImageData[];
+}
+
 export const reportsApi = {
   createReport: (payload: CreateReportPayload) =>
     api.post('/reports', payload),
+
+  updateReport: (id: string, payload: UpdateReportPayload) =>
+    api.put(`/reports/${id}`, payload),
 
   getMyReports: (params?: { page?: number; limit?: number; status?: string }) =>
     api.get('/reports/my-reports', { params }),

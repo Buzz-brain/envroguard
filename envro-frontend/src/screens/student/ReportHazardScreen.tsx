@@ -24,10 +24,12 @@ import { reportsApi } from '../../api/reports';
 import { uploadMultipleToCloudinary } from '../../services/cloudinary';
 import { facultiesApi } from '../../api/faculties';
 import { useAuth } from '../../contexts/AuthContext';
-import type { Faculty } from '../../types';
+import type { Faculty, HazardReport } from '../../types';
 
 const { width } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';
+
+type PickedImage = { uri: string; publicId?: string; url?: string };
 
 const blobToDataUrl = (blobUrl: string): Promise<string> =>
   fetch(blobUrl)
@@ -50,6 +52,8 @@ export default function ReportHazardScreen({ navigation, route }: any) {
   const styles = getStyles(colors);
   const { user } = useAuth();
   const preSelectedCategory = route?.params?.category;
+  const reportId = route?.params?.reportId as string | undefined;
+  const isEdit = Boolean(reportId);
   const isStudent = user?.role === 'student';
   const scrollRef = useRef<ScrollView>(null);
   const errorRef = useRef<View>(null);
@@ -58,7 +62,7 @@ export default function ReportHazardScreen({ navigation, route }: any) {
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState(preSelectedCategory || '');
   const [address, setAddress] = useState('');
-  const [images, setImages] = useState<{ uri: string }[]>([]);
+  const [images, setImages] = useState<PickedImage[]>([]);
   const [faculties, setFaculties] = useState<Faculty[]>([]);
   const [selectedFaculty, setSelectedFaculty] = useState('');
   const [loading, setLoading] = useState(false);
@@ -68,7 +72,20 @@ export default function ReportHazardScreen({ navigation, route }: any) {
 
   useEffect(() => {
     if (!isStudent) loadFaculties();
-    getLocation();
+    if (reportId) {
+      const r = route?.params?.report as HazardReport | undefined;
+      if (r) {
+        setTitle(r.title || '');
+        setDescription(r.description || '');
+        setCategory(r.category || '');
+        setAddress(r.location?.address || '');
+        const [lng, lat] = r.location?.coordinates || [];
+        if (lat !== undefined && lng !== undefined) setLocation({ lat, lng });
+        setImages((r.images || []).map(img => ({ uri: img.url, url: img.url, publicId: img.publicId })));
+      }
+    } else {
+      getLocation();
+    }
   }, []);
 
   useEffect(() => {
@@ -131,31 +148,50 @@ export default function ReportHazardScreen({ navigation, route }: any) {
 
     setLoading(true); setError(null);
     try {
+      const existingImages = images
+        .filter(img => img.publicId && img.url)
+        .map(img => ({ url: img.url as string, publicId: img.publicId as string }));
+      const newImages = images.filter(img => !img.publicId);
+
       let uploadedImages: { url: string; publicId: string }[] = [];
-      if (images.length > 0) {
-        ToastService.info('Uploading', `Uploading ${images.length} image(s)...`);
+      if (newImages.length > 0) {
+        ToastService.info('Uploading', `Uploading ${newImages.length} image(s)...`);
         uploadedImages = await uploadMultipleToCloudinary(
-          images.map(img => img.uri),
+          newImages.map(img => img.uri),
           (done, total) => {
             ToastService.info('Uploading', `Uploaded ${done}/${total} image(s)...`);
           }
         );
       }
+      const allImages = [...existingImages, ...uploadedImages];
 
-      await reportsApi.createReport({
-        title: title.trim(),
-        description: description.trim(),
-        category,
-        address: address.trim(),
-        latitude: location?.lat,
-        longitude: location?.lng,
-        faculty: !isStudent && selectedFaculty ? selectedFaculty : undefined,
-        images: uploadedImages,
-      });
-      ToastService.success('Report Submitted', 'Your hazard report has been received.');
+      if (isEdit && reportId) {
+        await reportsApi.updateReport(reportId, {
+          title: title.trim(),
+          description: description.trim(),
+          category,
+          address: address.trim(),
+          latitude: location?.lat,
+          longitude: location?.lng,
+          images: allImages,
+        });
+        ToastService.success('Report Updated', 'Your hazard report has been updated.');
+      } else {
+        await reportsApi.createReport({
+          title: title.trim(),
+          description: description.trim(),
+          category,
+          address: address.trim(),
+          latitude: location?.lat,
+          longitude: location?.lng,
+          faculty: !isStudent && selectedFaculty ? selectedFaculty : undefined,
+          images: allImages,
+        });
+        ToastService.success('Report Submitted', 'Your hazard report has been received.');
+      }
       navigation.goBack();
     } catch (err: any) {
-      const msg = err.message || err.response?.data?.message || 'Failed to submit report';
+      const msg = err.message || err.response?.data?.message || `Failed to ${isEdit ? 'update' : 'submit'} report`;
       setErrorAndScroll(msg);
     } finally { setLoading(false); }
   };
@@ -172,8 +208,8 @@ export default function ReportHazardScreen({ navigation, route }: any) {
             <Ionicons name="arrow-back" size={22} color={colors.text} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>Report a Hazard</Text>
-            <Text style={styles.headerSub}>Help keep your campus safe</Text>
+            <Text style={styles.headerTitle}>{isEdit ? 'Edit Report' : 'Report a Hazard'}</Text>
+            <Text style={styles.headerSub}>{isEdit ? 'Update your report details' : 'Help keep your campus safe'}</Text>
           </View>
         </View>
 
@@ -317,7 +353,7 @@ export default function ReportHazardScreen({ navigation, route }: any) {
         </View>
 
         <Button
-          title="Submit Report"
+          title={isEdit ? 'Save Changes' : 'Submit Report'}
           onPress={handleSubmit}
           loading={loading}
           size="lg"
