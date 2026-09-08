@@ -9,6 +9,7 @@
 
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.buzzbrain.envroguard",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Allow EnviroGuard to access your photos to attach hazard report images.",
         "NSCameraUsageDescription": "Allow EnviroGuard to access your camera to take hazard photos.",
