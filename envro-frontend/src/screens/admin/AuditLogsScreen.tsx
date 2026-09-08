@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, TextInput, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { SkeletonList } from '../../components/ui/SkeletonList';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Button } from '../../components/ui/Button';
@@ -59,6 +59,7 @@ const getActionIcon = (action: string) => actionIcons[action] || 'ellipse';
 const getActionLabel = (action: string) => actionLabels[action] || action.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
 export default function AuditLogsScreen() {
+  const navigation = useNavigation();
   const colors = useColors();
   const styles = getStyles(colors);
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -126,6 +127,11 @@ export default function AuditLogsScreen() {
 
   return (
     <View style={styles.container}>
+      {/* ── Back Button ── */}
+      <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+        <Ionicons name="arrow-back" size={22} color={colors.text} />
+      </TouchableOpacity>
+
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Audit Log</Text>
@@ -209,12 +215,24 @@ const getStyles = (c: any) => StyleSheet.create({
     flex: 1,
     backgroundColor: c.background,
   },
+  backBtn: {
+    marginTop: spacing.xxxl,
+    marginLeft: spacing.lg,
+    marginBottom: spacing.xs,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: c.card,
+    borderWidth: 1,
+    borderColor: c.border,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xxxl,
     paddingBottom: spacing.md,
   },
   title: {

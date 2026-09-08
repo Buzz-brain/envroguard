@@ -100,6 +100,7 @@ function AdminSettingsStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="SettingsMain" component={AdminSettings} />
+      <Stack.Screen name="AuditLogs" component={AuditLogs} />
     </Stack.Navigator>
   );
 }

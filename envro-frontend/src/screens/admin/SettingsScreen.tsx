@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -27,6 +28,7 @@ import { Button } from '../../components/ui/Button';
 import { getSettings, updateSettings, UserSettings } from '../../services/settings';
 
 export default function SettingsScreen() {
+  const navigation = useNavigation();
   const { colors, isDark, toggleTheme } = useThemeColors();
   const styles = getStyles(colors);
   const { user, logout } = useAuth();
@@ -265,6 +267,18 @@ export default function SettingsScreen() {
             </View>
           </View>
         )}
+
+        {/* ── Administration ── */}
+        <View style={styles.settingsGroup}>
+          <Text style={styles.sectionLabel}>ADMINISTRATION</Text>
+          <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('AuditLogs' as never)} activeOpacity={0.7}>
+            <View style={[styles.menuIcon, { backgroundColor: isDark ? '#1E293B' : '#EEF2FF' }]}>
+              <Ionicons name="time-outline" size={20} color={isDark ? '#A5B4FC' : '#4F46E5'} />
+            </View>
+            <Text style={styles.menuText}>Audit Logs</Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+          </TouchableOpacity>
+        </View>
 
         {/* ── Sign Out ── */}
         <View style={styles.logoutSection}>
