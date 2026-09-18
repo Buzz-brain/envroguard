@@ -1,4 +1,5 @@
 import { asyncHandler, apiResponse, ApiError } from '../../utils/index.js';
+import { roleToActorModel } from '../../services/audit.service.js';
 import * as reportService from './service.js';
 import { ROLES } from '../../constants/roles.js';
 import { getTimeline } from '../../services/timeline.service.js';
@@ -76,7 +77,11 @@ export const getMyReports = asyncHandler(async (req, res) => {
 });
 
 export const deleteReport = asyncHandler(async (req, res) => {
-  const result = await reportService.deleteReportService(req.params.id, req.user.id);
+  const result = await reportService.deleteReportService(
+    req.params.id,
+    req.user.id,
+    roleToActorModel(req.user.role)
+  );
   return apiResponse(res, 200, result.message);
 });
 

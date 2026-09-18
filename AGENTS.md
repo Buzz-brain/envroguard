@@ -26,6 +26,13 @@ Campus environmental hazard reporting system.
 - `npx tsc --noEmit` — typecheck
 
 ## Progress log
+- 2026-09-18 — **FINAL PRODUCTION VERIFICATION + fixes for the 2 found defects** (not yet committed).
+  - Ran 49-check read/write probe vs live production API; **47 PASS**, 2 genuine defects found.
+  - Verified live: deploy guard (status transitions), assignment (env-admin-only, 404 on FacultyAdmin/nonexistent, 400 on inactive, notification recipient/recipientModel), report by-id scope, department scope, dept/faculty audit attribution, audit endpoint matrix, malformed-filter hardening. Report: `doc/PRODUCTION_VERIFICATION_REPORT.md` (doc/ is gitignored).
+  - **Defect 1 (fixed):** `report/service.js` list-scope bypass — `query.faculty` overwrote the enforced faculty scope. Now gated to `environmentalAdmin` only.
+  - **Defect 2 (fixed):** `System`-attributed audit rows on admin actions. Added real `actorModel` to report deletion (`report/service.js` + controller) and student import/batch/delete (`student/service.js` `roleToActorModel` + controller); grep confirms no remaining audit calls omit actorModel.
+  - Tests: `test/fixes.test.js` now **25/25 passing** (added PV-L2, PV-L2b, PV-A1..A3 regression tests); evidence `security-tests/evidence/production-defects-fix-test-run.txt`.
+  - Residual: push-to-device delivery unverifiable (no device tokens); PV-30/PV-34 harness artifacts resolved as PASS (faculty account name is "SICT Faculty Administrator"; audit-logs `data` is an array).
 - 2026-09-18 — **Administrative responsibility fixes** (commit `b481e1b`, pushed; auto-redeploy on Render).
   - Report assignment targets active EnvironmentalAdmin only (`recipientModel: 'EnvironmentalAdmin'`).
   - `getReportByIdService` faculty-scopes facultyAdmin/departmentAdmin, ownership-scopes students.

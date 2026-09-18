@@ -366,7 +366,7 @@ export const getMyReportsService = async (studentAccountId, query) => {
   return { reports, pagination: buildPaginationMeta(total, page, limit) };
 };
 
-export const deleteReportService = async (reportId, actorId) => {
+export const deleteReportService = async (reportId, actorId, actorModel) => {
   const report = await HazardReport.findById(reportId);
 
   if (!report) {
@@ -377,6 +377,7 @@ export const deleteReportService = async (reportId, actorId) => {
 
   createAuditLog({
     actor: actorId,
+    actorModel,
     action: 'delete_report',
     entityType: 'Report',
     entityId: reportId,
@@ -444,7 +445,7 @@ const buildReportFilters = (query, userRole, userFaculty) => {
   if (query.status) filters.status = query.status;
   if (query.category) filters.category = query.category;
   if (query.priority) filters.priority = query.priority;
-  if (query.faculty) filters.faculty = query.faculty;
+  if (userRole === 'environmentalAdmin' && query.faculty) filters.faculty = query.faculty;
 
   if (query.search) {
     filters.$or = [

@@ -499,3 +499,96 @@ test('Regression C-series: token claims for deactivated admin denied', async () 
   const res = await get(t.env1, `${BASE}/reports`);
   assert.equal(res.status, 401);
 });
+
+test('Regression PV-L2: ?faculty= query cannot override facultyAdmin/departmentAdmin scope', async () => {
+  const t = tokens();
+  const faScoped = await get(t.fa, `${BASE}/reports?page=1&limit=20&faculty=${f.facultyB._id}`);
+  assert.equal(faScoped.status, 200);
+  const faIds = (await faScoped.json()).data.map((r) => r._id.toString());
+  assert.ok(faIds.includes(f.reportA._id.toString()), 'own-faculty report must be returned');
+  assert.ok(!faIds.includes(f.reportB._id.toString()), 'foreign-faculty report must NOT be returned');
+
+  const daScoped = await get(t.da, `${BASE}/reports?page=1&limit=20&faculty=${f.facultyB._id}`);
+  assert.equal(daScoped.status, 200);
+  const daIds = (await daScoped.json()).data.map((r) => r._id.toString());
+  assert.ok(daIds.includes(f.reportA._id.toString()), 'department admin own-faculty report must be returned');
+  assert.ok(!daIds.includes(f.reportB._id.toString()), 'department admin foreign report must NOT be returned');
+});
+
+test('Regression PV-L2b: envAdmin may still filter reports by faculty', async () => {
+  const t = tokens();
+  const filtered = await get(t.env1, `${BASE}/reports?page=1&limit=20&faculty=${f.facultyB._id}`);
+  assert.equal(filtered.status, 200);
+  const ids = (await filtered.json()).data.map((r) => r._id.toString());
+  assert.ok(ids.includes(f.reportB._id.toString()), 'target-faculty report should be returned');
+  assert.ok(!ids.includes(f.reportA._id.toString()), 'other-faculty report should be excluded');
+});
+
+test('Regression PV-A1: delete_report audit log records the real EnvironmentalAdmin', async () => {
+  const t = tokens();
+  const res = await get(t.env1, `${BASE}/reports/${f.reportB._id}`, { method: 'DELETE' });
+  assert.equal(res.status, 200, await res.text());
+
+  const log = await waitFor(() =>
+    AuditLog.findOne({ action: 'delete_report', entityType: 'Report', entityId: f.reportB._id })
+  );
+  assert.ok(log, 'delete_report audit log should exist');
+  assert.equal(log.actor.toString(), f.env1._id.toString());
+  assert.equal(log.actorModel, 'EnvironmentalAdmin');
+  assert.ok(log.actorName, 'actorName should be populated');
+  assert.equal(log.actorName, 'Env Admin One');
+});
+
+test('Regression PV-A2: batch create + delete student audit logs record the DepartmentAdmin', async () => {
+  const t = tokens();
+  const batch = await get(t.da, `${BASE}/students/batch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      students: [
+        { registrationNumber: '30000000001', fullName: 'Batch Imported Student', email: 'batch@test.com', department: 'IFT', level: '200' },
+      ],
+    }),
+  });
+  assert.equal(batch.status, 200, await batch.text());
+
+  const created = await Student.findOne({ registrationNumber: '30000000001' });
+  assert.ok(created, 'batch-created student should exist');
+
+  const logBatch = await waitFor(() => AuditLog.findOne({ action: 'batch_create_students', entityType: 'Student' }));
+  assert.ok(logBatch, 'batch_create_students audit log should exist');
+  assert.equal(logBatch.actor.toString(), f.daA._id.toString());
+  assert.equal(logBatch.actorModel, 'DepartmentAdmin');
+  assert.ok(logBatch.actorName, 'actorName should be populated');
+
+  const del = await get(t.da, `${BASE}/students/${created._id}`, { method: 'DELETE' });
+  assert.equal(del.status, 200, await del.text());
+
+  const logDel = await waitFor(() =>
+    AuditLog.findOne({ action: 'delete_student', entityType: 'Student', entityId: created._id })
+  );
+  assert.ok(logDel, 'delete_student audit log should exist');
+  assert.equal(logDel.actor.toString(), f.daA._id.toString());
+  assert.equal(logDel.actorModel, 'DepartmentAdmin');
+  assert.ok(logDel.actorName, 'actorName should be populated');
+  assert.equal(logDel.actorName, 'Dept Admin A');
+});
+
+test('Regression PV-A3: import_students audit log records the DepartmentAdmin (multipart CSV)', async () => {
+  const t = tokens();
+  const csv = 'registrationNumber,fullName,email,level\n30000000002,Imported Student Two,imported2@test.com,300\n';
+  const fd = new FormData();
+  fd.append('file', new Blob([csv], { type: 'text/csv' }), 'students.csv');
+
+  const res = await get(t.da, `${BASE}/students/import`, { method: 'POST', body: fd });
+  assert.equal(res.status, 200, await res.text());
+
+  const log = await waitFor(() => AuditLog.findOne({ action: 'import_students', entityType: 'Student' }));
+  assert.ok(log, 'import_students audit log should exist');
+  assert.equal(log.actor.toString(), f.daA._id.toString());
+  assert.equal(log.actorModel, 'DepartmentAdmin');
+  assert.ok(log.actorName, 'actorName should be populated');
+
+  const created = await Student.findOne({ registrationNumber: '30000000002' });
+  assert.ok(created, 'imported student should exist');
+});

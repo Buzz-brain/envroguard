@@ -1,4 +1,5 @@
 import { asyncHandler, apiResponse } from '../../utils/index.js';
+import { roleToActorModel } from '../../services/audit.service.js';
 import * as studentService from './service.js';
 
 export const importStudents = asyncHandler(async (req, res) => {
@@ -72,6 +73,7 @@ export const deleteStudent = asyncHandler(async (req, res) => {
     req.params.id,
     req.user.faculty,
     req.user.id,
+    roleToActorModel(req.user.role),
     req.user.departmentCode
   );
 

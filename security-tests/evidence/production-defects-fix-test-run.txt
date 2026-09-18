@@ -1,0 +1,34 @@
+ENVIROGUARD — PRODUCTION DEFECT FIX VERIFICATION
+==================================================
+Date: 2026-09-18
+Scope: The two genuine defects found in the final production verification run.
+Command: npm test  (envro-backend; isolated envro-guard-test DB, fixtures, ephemeral port)
+Result: 25 tests / 25 passing (0 failed)
+
+Defect 1 — Report list scope bypass (?faculty= override)
+  Fix: report/service.js buildReportFilters() — the role scope (lines 440-442) previously
+       overwritten by `if (query.faculty) filters.faculty = query.faculty;` :447.
+       Now the query override is gated to environmentalAdmin only, so a client-supplied
+       faculty value can never override the enforced faculty scope for facultyAdmin /
+       departmentAdmin. EnvAdmin faculty filtering preserved.
+  Tests: Regression PV-L2 (facultyAdmin & departmentAdmin scope held) +
+         Regression PV-L2b (envAdmin faculty filter still works) — PASS.
+
+Defect 2 — System-attributed audit rows on admin actions
+  Fix: createAuditLog now receives the real actorModel for:
+       - report deletion  (report/service.js deleteReportService; controller passes
+         roleToActorModel(req.user.role))
+       - student import   (student/service.js importStudentsService → roleToActorModel(actorRole))
+       - student batch    (student/service.js batchCreateStudentsService → roleToActorModel(actorRole))
+       - student delete   (student/service.js deleteStudentService; controller passes
+         roleToActorModel(req.user.role))
+       Verified by exhaustive grep: remaining createAuditLog call sites (report create/update/status,
+       department CRUD, faculty CRUD, logAction middleware) already pass a correct actorModel.
+  Tests: Regression PV-A1 (delete_report → EnvironmentalAdmin), PV-A2 (batch create + delete
+         student → DepartmentAdmin), PV-A3 (import_students → DepartmentAdmin) — PASS, each
+         asserting actor id, actorModel, and populated actorName.
+
+Side notes
+  - eslint is not installed in envro-backend (npm run lint exits: 'eslint' is not recognized);
+    the integration suite is the verification gate.
+  - No production code beyond the above modules was touched.

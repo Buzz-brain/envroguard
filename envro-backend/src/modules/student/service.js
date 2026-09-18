@@ -6,7 +6,7 @@ import { Student } from './model.js';
 import { Faculty } from '../faculty/model.js';
 import { ApiError } from '../../utils/apiError.js';
 import { logger } from '../../utils/logger.js';
-import { createAuditLog } from '../../services/audit.service.js';
+import { createAuditLog, roleToActorModel } from '../../services/audit.service.js';
 
 export const importStudentsService = async (fileBuffer, facultyId, fileType, actorId, actorRole, actorDepartment, actorDepartmentCode) => {
   const faculty = await Faculty.findById(facultyId);
@@ -152,6 +152,7 @@ export const importStudentsService = async (fileBuffer, facultyId, fileType, act
 
   createAuditLog({
     actor: actorId,
+    actorModel: roleToActorModel(actorRole),
     action: 'import_students',
     entityType: 'Student',
     description: `Imported ${results.created} students (${results.updated} updated, ${results.failed} failed) for ${faculty.name}`,
@@ -280,6 +281,7 @@ export const batchCreateStudentsService = async (students, facultyId, actorId, a
 
   createAuditLog({
     actor: actorId,
+    actorModel: roleToActorModel(actorRole),
     action: 'batch_create_students',
     entityType: 'Student',
     description: `Batch created ${results.created} students (${results.updated} updated, ${results.failed} failed) for ${faculty.name}`,
@@ -348,7 +350,7 @@ export const updateStudentService = async (studentId, data, facultyFilter = null
   return student;
 };
 
-export const deleteStudentService = async (studentId, facultyFilter = null, actorId, departmentCode = null) => {
+export const deleteStudentService = async (studentId, facultyFilter = null, actorId, actorModel, departmentCode = null) => {
   const filters = { _id: studentId };
   if (facultyFilter) filters.faculty = facultyFilter;
   if (departmentCode) filters.department = departmentCode;
@@ -361,6 +363,7 @@ export const deleteStudentService = async (studentId, facultyFilter = null, acto
 
   createAuditLog({
     actor: actorId,
+    actorModel,
     action: 'delete_student',
     entityType: 'Student',
     entityId: student._id,
