@@ -1,8 +1,13 @@
 import { asyncHandler, apiResponse } from '../../utils/index.js';
+import { roleToActorModel } from '../../services/audit.service.js';
 import * as departmentService from './service.js';
 
 export const createDepartment = asyncHandler(async (req, res) => {
-  const department = await departmentService.createDepartmentService(req.body, req.user.id);
+  const department = await departmentService.createDepartmentService(
+    req.body,
+    req.user.id,
+    roleToActorModel(req.user.role)
+  );
   return apiResponse(res, 201, 'Department created successfully', department);
 });
 
@@ -17,12 +22,21 @@ export const getDepartmentById = asyncHandler(async (req, res) => {
 });
 
 export const updateDepartment = asyncHandler(async (req, res) => {
-  const department = await departmentService.updateDepartmentService(req.params.id, req.body, req.user.id);
+  const department = await departmentService.updateDepartmentService(
+    req.params.id,
+    req.body,
+    req.user.id,
+    roleToActorModel(req.user.role)
+  );
   return apiResponse(res, 200, 'Department updated successfully', department);
 });
 
 export const toggleDepartmentStatus = asyncHandler(async (req, res) => {
-  const result = await departmentService.toggleDepartmentStatusService(req.params.id, req.user.id);
+  const result = await departmentService.toggleDepartmentStatusService(
+    req.params.id,
+    req.user.id,
+    roleToActorModel(req.user.role)
+  );
   return apiResponse(
     res,
     200,
@@ -31,6 +45,10 @@ export const toggleDepartmentStatus = asyncHandler(async (req, res) => {
 });
 
 export const deleteDepartment = asyncHandler(async (req, res) => {
-  const result = await departmentService.deleteDepartmentService(req.params.id);
+  const result = await departmentService.deleteDepartmentService(
+    req.params.id,
+    req.user.id,
+    roleToActorModel(req.user.role)
+  );
   return apiResponse(res, 200, result.message);
 });

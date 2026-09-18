@@ -3,7 +3,7 @@ import { Faculty } from '../faculty/model.js';
 import { ApiError } from '../../utils/apiError.js';
 import { createAuditLog } from '../../services/audit.service.js';
 
-export const createDepartmentService = async (data, createdBy) => {
+export const createDepartmentService = async (data, createdBy, actorModel) => {
   const faculty = await Faculty.findById(data.faculty);
   if (!faculty) {
     throw new ApiError(404, 'Faculty not found');
@@ -23,8 +23,9 @@ export const createDepartmentService = async (data, createdBy) => {
     createdBy,
   });
 
-  createAuditLog({
+  await createAuditLog({
     actor: createdBy,
+    actorModel,
     action: 'create_department',
     entityType: 'Department',
     entityId: department._id,
@@ -65,7 +66,7 @@ export const getDepartmentByIdService = async (departmentId) => {
   return department;
 };
 
-export const updateDepartmentService = async (departmentId, data, actorId) => {
+export const updateDepartmentService = async (departmentId, data, actorId, actorModel) => {
   if (data.code) data.code = data.code.toUpperCase();
 
   if (data.code && data.faculty) {
@@ -88,8 +89,9 @@ export const updateDepartmentService = async (departmentId, data, actorId) => {
     throw new ApiError(404, 'Department not found');
   }
 
-  createAuditLog({
+  await createAuditLog({
     actor: actorId,
+    actorModel,
     action: 'update_department',
     entityType: 'Department',
     entityId: department._id,
@@ -100,7 +102,7 @@ export const updateDepartmentService = async (departmentId, data, actorId) => {
   return department;
 };
 
-export const toggleDepartmentStatusService = async (departmentId, actorId) => {
+export const toggleDepartmentStatusService = async (departmentId, actorId, actorModel) => {
   const department = await Department.findById(departmentId);
 
   if (!department) {
@@ -110,8 +112,9 @@ export const toggleDepartmentStatusService = async (departmentId, actorId) => {
   department.isActive = !department.isActive;
   await department.save();
 
-  createAuditLog({
+  await createAuditLog({
     actor: actorId,
+    actorModel,
     action: `toggle_department_${department.isActive ? 'activate' : 'deactivate'}`,
     entityType: 'Department',
     entityId: department._id,
@@ -122,14 +125,16 @@ export const toggleDepartmentStatusService = async (departmentId, actorId) => {
   return { isActive: department.isActive };
 };
 
-export const deleteDepartmentService = async (departmentId) => {
+export const deleteDepartmentService = async (departmentId, actorId, actorModel) => {
   const department = await Department.findByIdAndDelete(departmentId);
 
   if (!department) {
     throw new ApiError(404, 'Department not found');
   }
 
-  createAuditLog({
+  await createAuditLog({
+    actor: actorId,
+    actorModel,
     action: 'delete_department',
     entityType: 'Department',
     entityId: department._id,

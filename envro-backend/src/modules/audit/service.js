@@ -3,6 +3,8 @@ import { AuditLog } from './model.js';
 
 const ACTOR_MODELS = ['StudentAccount', 'DepartmentAdmin', 'FacultyAdmin', 'EnvironmentalAdmin'];
 
+const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const getPagination = (query) => {
   const page = Math.max(1, parseInt(query.page, 10) || 1);
   const limit = Math.min(100, Math.max(1, parseInt(query.limit, 10) || 20));
@@ -35,9 +37,10 @@ const resolveActorNames = async (records) => {
     Object.entries(byModel).map(async ([model, ids]) => {
       try {
         const Model = mongoose.models[model] || mongoose.model(model);
-        const docs = await Model.find({ _id: { $in: ids } }).select('firstName lastName email').lean();
+        const docs = await Model.find({ _id: { $in: ids } }).select('fullName firstName lastName email').lean();
         for (const d of docs) {
-          nameMap.set(`${model}:${String(d._id)}`, `${d.firstName || ''} ${d.lastName || ''}`.trim());
+          const name = d.fullName || `${d.firstName || ''} ${d.lastName || ''}`.trim() || d.email || '';
+          nameMap.set(`${model}:${String(d._id)}`, name);
         }
       } catch (error) {
         console.error(`Failed to resolve actor names for ${model}`, error.message);
@@ -65,13 +68,17 @@ const buildFilters = (query, userRole, userFaculty) => {
   if (query.actor) filters.actor = query.actor;
 
   if (query.search) {
-    filters.description = { $regex: query.search, $options: 'i' };
+    filters.description = { $regex: escapeRegex(query.search), $options: 'i' };
   }
 
   if (query.dateFrom || query.dateTo) {
-    filters.createdAt = {};
-    if (query.dateFrom) filters.createdAt.$gte = new Date(query.dateFrom);
-    if (query.dateTo) filters.createdAt.$lte = new Date(query.dateTo);
+    const parsedFrom = query.dateFrom && !isNaN(Date.parse(query.dateFrom));
+    const parsedTo = query.dateTo && !isNaN(Date.parse(query.dateTo));
+    if (parsedFrom || parsedTo) {
+      filters.createdAt = {};
+      if (parsedFrom) filters.createdAt.$gte = new Date(query.dateFrom);
+      if (parsedTo) filters.createdAt.$lte = new Date(query.dateTo);
+    }
   }
 
   return filters;

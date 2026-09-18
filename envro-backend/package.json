@@ -8,7 +8,8 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "lint": "eslint src/",
-    "seed": "node src/scripts/seedEnvironmentalAdmin.js"
+    "seed": "node src/scripts/seedEnvironmentalAdmin.js",
+    "test": "node --test test/fixes.test.js"
   },
   "keywords": [
     "environmental",

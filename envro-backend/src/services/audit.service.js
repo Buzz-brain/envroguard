@@ -1,5 +1,8 @@
 import { AuditLog } from '../modules/audit/model.js';
+import mongoose from 'mongoose';
 import { logger } from '../utils/logger.js';
+
+const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const roleModelMap = {
   student: 'StudentAccount',
@@ -10,7 +13,23 @@ const roleModelMap = {
 
 const roleToModel = (role) => roleModelMap[role] || 'System';
 
+export const roleToActorModel = (role) => roleToModel(role);
+
 const VALID_ACTOR_MODELS = ['StudentAccount', 'DepartmentAdmin', 'FacultyAdmin', 'EnvironmentalAdmin'];
+
+const resolveActorName = async ({ actor, actorModel, actorName }) => {
+  if (actorName) return actorName;
+  if (!actor || !VALID_ACTOR_MODELS.includes(actorModel)) return '';
+  try {
+    const Model = mongoose.models[actorModel] || mongoose.model(actorModel);
+    const doc = await Model.findById(actor).select('fullName firstName lastName email').lean();
+    if (!doc) return '';
+    return doc.fullName || `${doc.firstName || ''} ${doc.lastName || ''}`.trim() || doc.email || '';
+  } catch (error) {
+    logger.error('Failed to resolve audit actor name', { error: error.message });
+    return '';
+  }
+};
 
 export const createAuditLog = async ({
   actor,
@@ -27,10 +46,13 @@ export const createAuditLog = async ({
 }) => {
   try {
     const resolvedModel = actorModel || 'System';
+    const resolvedActor = actor && VALID_ACTOR_MODELS.includes(resolvedModel) ? actor : null;
+    const resolvedName = await resolveActorName({ actor: resolvedActor, actorModel: resolvedModel, actorName });
+
     await AuditLog.create({
-      actor: actor && VALID_ACTOR_MODELS.includes(resolvedModel) ? actor : null,
+      actor: resolvedActor,
       actorModel: resolvedModel,
-      actorName: actorName || '',
+      actorName: resolvedName,
       action,
       entityType,
       entityId: entityId || null,
@@ -58,13 +80,17 @@ export const getAuditLogsService = async (query, userRole, userFaculty) => {
   if (query.actor) filters.actor = query.actor;
 
   if (query.search) {
-    filters.description = { $regex: query.search, $options: 'i' };
+    filters.description = { $regex: escapeRegex(query.search), $options: 'i' };
   }
 
   if (query.dateFrom || query.dateTo) {
-    filters.createdAt = {};
-    if (query.dateFrom) filters.createdAt.$gte = new Date(query.dateFrom);
-    if (query.dateTo) filters.createdAt.$lte = new Date(query.dateTo);
+    const parsedFrom = query.dateFrom && !isNaN(Date.parse(query.dateFrom));
+    const parsedTo = query.dateTo && !isNaN(Date.parse(query.dateTo));
+    if (parsedFrom || parsedTo) {
+      filters.createdAt = {};
+      if (parsedFrom) filters.createdAt.$gte = new Date(query.dateFrom);
+      if (parsedTo) filters.createdAt.$lte = new Date(query.dateTo);
+    }
   }
 
   const [logs, total] = await Promise.all([

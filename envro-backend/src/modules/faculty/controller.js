@@ -22,7 +22,7 @@ export const updateFaculty = asyncHandler(async (req, res) => {
 });
 
 export const deleteFaculty = asyncHandler(async (req, res) => {
-  const result = await facultyService.deleteFacultyService(req.params.id);
+  const result = await facultyService.deleteFacultyService(req.params.id, req.user.id);
   return apiResponse(res, 200, result.message);
 });
 

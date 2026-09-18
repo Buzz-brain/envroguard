@@ -61,6 +61,16 @@ const statusActions: { label: string; status: ReportStatus; color: string; icon:
   { label: 'Resolved', status: 'resolved', color: '#10B981', icon: 'checkmark-circle-outline' },
 ];
 
+const transitionMap: Record<ReportStatus, ReportStatus[]> = {
+  pending: ['under_review'],
+  under_review: ['in_progress'],
+  in_progress: ['resolved'],
+  resolved: [],
+};
+
+const getAllowedActions = (currentStatus: ReportStatus) =>
+  statusActions.filter((action) => (transitionMap[currentStatus] || []).includes(action.status));
+
 export default function AdminReportDetailScreen({ route, navigation }: any) {
   const colors = useColors();
   const styles = getStyles(colors);
@@ -291,7 +301,7 @@ export default function AdminReportDetailScreen({ route, navigation }: any) {
               <Text style={styles.sectionLabel}>Update Status</Text>
             </View>
             <View style={styles.statusGrid}>
-              {statusActions.map((action) => {
+              {getAllowedActions(report.status).map((action) => {
                 const isCurrent = report.status === action.status;
                 return (
                   <TouchableOpacity

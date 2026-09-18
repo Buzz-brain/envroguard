@@ -2,11 +2,24 @@ import mongoose from 'mongoose';
 import { HazardReport } from './model.js';
 import { StudentAccount } from '../auth/model/StudentAccount.js';
 import { Student } from '../student/model.js';
+import { EnvironmentalAdmin } from '../environmentalAdmin/model.js';
 import { REPORT_STATUS, NOTIFICATION_TYPES } from '../../constants/hazard.js';
 import { ApiError } from '../../utils/apiError.js';
 import { createNotificationService } from '../notification/service.js';
 import { createAuditLog } from '../../services/audit.service.js';
 import { addReportSubmittedEvent, addReportEditedEvent, addStatusChangedEvent, addAssignedEvent } from '../../services/timeline.service.js';
+
+export const VALID_STATUS_TRANSITIONS = {
+  [REPORT_STATUS.PENDING]: [REPORT_STATUS.UNDER_REVIEW],
+  [REPORT_STATUS.UNDER_REVIEW]: [REPORT_STATUS.IN_PROGRESS],
+  [REPORT_STATUS.IN_PROGRESS]: [REPORT_STATUS.RESOLVED],
+  [REPORT_STATUS.RESOLVED]: [],
+};
+
+export const canTransitionStatus = (fromStatus, toStatus) => {
+  const allowed = VALID_STATUS_TRANSITIONS[fromStatus] || [];
+  return allowed.includes(toStatus);
+};
 
 export const createReportService = async (data, studentAccountId) => {
   const studentAccount = await StudentAccount.findById(studentAccountId);
@@ -204,9 +217,12 @@ export const getAllReportsService = async (query, userRole, userFaculty) => {
   return { reports, pagination: buildPaginationMeta(total, page, limit) };
 };
 
-export const getReportByIdService = async (reportId, userRole, userFaculty) => {
+export const getReportByIdService = async (reportId, userRole, userFaculty, userId) => {
   const filters = { _id: reportId };
-  if (userRole === 'departmentAdmin' && userFaculty) {
+
+  if (userRole === 'student') {
+    filters.reportedBy = userId;
+  } else if ((userRole === 'departmentAdmin' || userRole === 'facultyAdmin') && userFaculty) {
     filters.faculty = userFaculty;
   }
 
@@ -228,6 +244,13 @@ export const updateReportStatusService = async (reportId, status, note, adminId,
 
   if (!report) {
     throw new ApiError(404, 'Report not found');
+  }
+
+  if (!canTransitionStatus(report.status, status)) {
+    throw new ApiError(
+      400,
+      `Invalid status transition from "${report.status}" to "${status}". Allowed: ${(VALID_STATUS_TRANSITIONS[report.status] || []).join(', ') || 'none (terminal state)'}`
+    );
   }
 
   report.status = status;
@@ -285,23 +308,34 @@ export const updateReportStatusService = async (reportId, status, note, adminId,
 };
 
 export const assignReportService = async (reportId, adminId, actorId) => {
-  const report = await HazardReport.findByIdAndUpdate(
-    reportId,
-    { assignedTo: adminId },
-    { new: true }
-  )
-    .populate('assignedTo', 'fullName email')
-    .populate('faculty', 'name');
+  const report = await HazardReport.findById(reportId);
 
   if (!report) {
     throw new ApiError(404, 'Report not found');
   }
 
-  addAssignedEvent(report._id, adminId, null, actorId, 'EnvironmentalAdmin');
+  const assignee = await EnvironmentalAdmin.findById(adminId).select('fullName email isActive');
+
+  if (!assignee) {
+    throw new ApiError(404, 'Environmental administrator not found');
+  }
+
+  if (!assignee.isActive) {
+    throw new ApiError(400, 'Cannot assign to an inactive environmental administrator');
+  }
+
+  report.assignedTo = adminId;
+  await report.save();
+
+  const updatedReport = await HazardReport.findById(reportId)
+    .populate('assignedTo', 'fullName email')
+    .populate('faculty', 'name');
+
+  addAssignedEvent(report._id, adminId, assignee.fullName, actorId, 'EnvironmentalAdmin');
 
   createNotificationService({
     recipientId: adminId,
-    recipientModel: 'FacultyAdmin',
+    recipientModel: 'EnvironmentalAdmin',
     type: NOTIFICATION_TYPES.REPORT_ASSIGNED,
     title: 'Report Assigned',
     message: `Report "${report.title}" has been assigned to you`,
@@ -310,7 +344,7 @@ export const assignReportService = async (reportId, adminId, actorId) => {
     actorId,
   });
 
-  return report;
+  return updatedReport;
 };
 
 export const getMyReportsService = async (studentAccountId, query) => {
@@ -401,7 +435,8 @@ const getPagination = (query) => {
 const buildReportFilters = (query, userRole, userFaculty) => {
   const filters = {};
 
-  // Faculty-scoped access
+  // Faculty-scoped access: department and faculty admins can only see
+  // reports belonging to their own faculty, regardless of query params.
   if ((userRole === 'departmentAdmin' || userRole === 'facultyAdmin') && userFaculty) {
     filters.faculty = userFaculty;
   }

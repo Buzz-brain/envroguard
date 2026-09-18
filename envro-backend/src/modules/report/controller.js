@@ -38,7 +38,8 @@ export const getReportById = asyncHandler(async (req, res) => {
   const report = await reportService.getReportByIdService(
     req.params.id,
     req.user.role,
-    req.user.faculty
+    req.user.faculty,
+    req.user.id
   );
 
   return apiResponse(res, 200, 'Report retrieved', report);

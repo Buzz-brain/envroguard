@@ -67,18 +67,21 @@ export const updateFacultyService = async (facultyId, data, actorId) => {
   return faculty;
 };
 
-export const deleteFacultyService = async (facultyId) => {
+export const deleteFacultyService = async (facultyId, actorId) => {
   const faculty = await Faculty.findByIdAndDelete(facultyId);
 
   if (!faculty) {
     throw new ApiError(404, 'Faculty not found');
   }
 
-  createAuditLog({
+  await createAuditLog({
+    actor: actorId,
+    actorModel: 'EnvironmentalAdmin',
     action: 'delete_faculty',
     entityType: 'Faculty',
     entityId: facultyId,
     description: `Deleted faculty: ${faculty.name}`,
+    faculty: facultyId,
   });
 
   return { message: 'Faculty deleted successfully' };
