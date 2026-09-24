@@ -1,7 +1,7 @@
 # EnviroGuard — Security & Access-Control Test Results (S01–S06)
 
 Live deployment under test: `https://envroguard-tmjk.onrender.com/api/v1`
-Executed: 08 Sep 2026 (UTC). Tool: `curl` (HTTP), JSON responses saved verbatim (see Section A).
+Executed: 24 Sep 2026 (UTC). Tool: `curl` (HTTP), JSON responses saved verbatim (see Section A).
 All config: 1 request per test (no load), read-only GET endpoints used throughout except where noted.
 
 ## Roles and Accounts Used
@@ -84,15 +84,16 @@ scope filters); no rule was bypassed, weakened, or disabled during testing.
 
 ## E. Residual Observations (not part of the six tests)
 
-1. **`GET /audit-logs` returns HTTP 500 for authorized roles.** Both a system admin and an
-   SICT faculty admin (faculty-scoped query, `page=1&limit=5`) consistently received
-   `500 Internal server error` (evidence: `s05d-envadmin-audit-500.json`). The route and RBAC
-   are correct (403 for dept admin, allowed roles vs denied roles behave as designed); the 500
-   occurs inside the controller/service. Likely cause hypothesis: `AuditLog.find(...).populate('actor')`
-   with `refPath: 'actorModel'` — any audit document whose `actorModel` is `'System'` (the
-   schema default) while `actor` holds a non-null value makes populate query the unregistered
-   model name `System`, throwing before a response is built. Requires verification in server
-   logs / the production DB (not reachable from here — local `.env` points to a local MongoDB).
+1. **`GET /audit-logs` initially returned HTTP 500 during this session** but is confirmed fixed.
+   During the access-control runs, both a system admin and an SICT faculty admin consistently
+   received `500 Internal server error` (evidence `s05d-envadmin-audit-500.json`). The route/RBAC
+   was still correct at that moment (403 for dept admin, 200 for env admin dashboard). A
+   re-check a short while later with a fresh admin login returned **200 `Audit logs retrieved`**.
+   This matches the deployed fix (`6204370`, 08 Sep 2026): the service now reads logs with
+   `.lean()` and resolves actor names per `actorModel` instead of `AuditLog.populate('actor')`
+   (which queried the unregistered `System` model whenever a row had `actorModel: 'System'`
+   with a non-null actor). The transient 500s were consistent with an older container/image
+   still serving the pre-fix populate path at test time.
 2. **Report list faculty scoping for faculty admins is client-driven.** `GET /reports`
    (`getAllReportsService`) applies an automatic faculty filter only for department admins;
    for faculty admins the list respects the `?faculty=` query value the client sends and does
