@@ -104,20 +104,44 @@ export const getAuditLogsService = async (query, userRole, userFaculty) => {
   return { logs, pagination: buildPaginationMeta(total, page, limit) };
 };
 
-export const logAction = (resource, action) => {
+export const logAction = (resource, action, options = {}) => {
+  const { logSuccess = true, logFailure = true } = options;
+
   return (req, res, next) => {
     const originalSend = res.json;
 
     res.json = function (body) {
-      createAuditLog({
-        actor: req.user?.id || null,
-        actorModel: req.user?.role ? roleToModel(req.user.role) : 'System',
-        action,
-        entityType: resource,
-        entityId: req.params.id || body?.data?._id || null,
-        description: `${req.method} ${req.originalUrl}`,
-        ipAddress: req.ip,
-      });
+      const statusCode = res.statusCode || 200;
+      const actorModel = req.user?.role ? roleToModel(req.user.role) : 'System';
+      const actor = req.user?.id || null;
+      const targetId = req.params.id || body?.data?._id || null;
+
+      if (statusCode >= 400) {
+        // Record failed attempts distinctly so they cannot be mistaken for
+        // successful changes. Skipped when the handler/service already logs the
+        // failure itself.
+        if (logFailure) {
+          createAuditLog({
+            actor,
+            actorModel,
+            action: `${action}_failed`,
+            entityType: resource,
+            entityId: targetId,
+            description: `${req.method} ${req.originalUrl} failed with status ${statusCode}${body?.message ? `: ${body.message}` : ''}`,
+            ipAddress: req.ip,
+          });
+        }
+      } else if (logSuccess) {
+        createAuditLog({
+          actor,
+          actorModel,
+          action,
+          entityType: resource,
+          entityId: targetId,
+          description: `${req.method} ${req.originalUrl}`,
+          ipAddress: req.ip,
+        });
+      }
 
       return originalSend.call(this, body);
     };

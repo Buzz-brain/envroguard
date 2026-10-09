@@ -115,11 +115,21 @@ export const updateReportStatus = [
     .withMessage('Status is required')
     .isIn(Object.values(REPORT_STATUS))
     .withMessage('Invalid status'),
+  body('currentStatus')
+    .notEmpty()
+    .withMessage('Current status is required')
+    .isIn(Object.values(REPORT_STATUS))
+    .withMessage('Invalid current status'),
   body('note')
     .optional()
     .trim()
     .isLength({ max: 500 })
     .withMessage('Note cannot exceed 500 characters'),
+  body('reason')
+    .optional()
+    .trim()
+    .isLength({ min: 10, max: 500 })
+    .withMessage('Reason must be between 10 and 500 characters'),
 ];
 
 export const assignReport = [

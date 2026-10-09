@@ -47,13 +47,14 @@ export const getReportById = asyncHandler(async (req, res) => {
 });
 
 export const updateReportStatus = asyncHandler(async (req, res) => {
-  const report = await reportService.updateReportStatusService(
-    req.params.id,
-    req.body.status,
-    req.body.note,
-    req.user.id,
-    req.user.role === 'environmentalAdmin' ? 'EnvironmentalAdmin' : 'FacultyAdmin'
-  );
+  const report = await reportService.updateReportStatusService(req.params.id, {
+    status: req.body.status,
+    currentStatus: req.body.currentStatus,
+    note: req.body.note,
+    reason: req.body.reason,
+    adminId: req.user.id,
+    adminModel: req.user.role === 'environmentalAdmin' ? 'EnvironmentalAdmin' : 'FacultyAdmin',
+  });
 
   return apiResponse(res, 200, 'Report status updated successfully', report);
 });

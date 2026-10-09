@@ -37,6 +37,11 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# class/sample data files (do not push)
+*.xlsx
+*.xls
+*.csv
+
 # generated native folders
 /ios
 /android

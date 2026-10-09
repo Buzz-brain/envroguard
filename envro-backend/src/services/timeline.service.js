@@ -71,22 +71,54 @@ export const addReportEditedEvent = async (reportId, actor, studentName, changed
 };
 
 export const addStatusChangedEvent = async (reportId, status, actor, actorModel, actorName, note) => {
-  const statusLabels = {
-    pending: 'Pending',
-    under_review: 'Under Review',
-    in_progress: 'In Progress',
-    resolved: 'Resolved',
-  };
+  await addTimelineEvent(
+    buildStatusChangedTimelineEntry({
+      reportId,
+      status,
+      actor,
+      actorModel,
+      actorName,
+      note,
+    })
+  );
+};
 
-  await addTimelineEvent({
+const STATUS_LABELS = {
+  pending: 'Pending',
+  under_review: 'Under Review',
+  in_progress: 'In Progress',
+  resolved: 'Resolved',
+};
+
+export const buildStatusChangedTimelineEntry = ({
+  reportId,
+  status,
+  previousStatus,
+  actor,
+  actorModel,
+  actorName,
+  note,
+  isReturn = false,
+}) => {
+  const label = STATUS_LABELS[status] || status;
+  const description = isReturn
+    ? `Returned to ${label}${note ? `: ${note}` : ''}`
+    : `Status changed to ${label}${note ? `: ${note}` : ''}`;
+
+  return {
     reportId,
     eventType: TIMELINE_EVENT_TYPES.STATUS_CHANGED,
-    description: `Status changed to ${statusLabels[status] || status}${note ? `: ${note}` : ''}`,
+    description,
     actor,
     actorModel,
     actorName,
-    metadata: { status, note },
-  });
+    metadata: {
+      status,
+      previousStatus,
+      note,
+      isReturn: !!isReturn,
+    },
+  };
 };
 
 export const addAssignedEvent = async (reportId, assignedToId, assignedToName, actor, actorModel) => {

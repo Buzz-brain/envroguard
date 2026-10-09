@@ -7,8 +7,9 @@ import { REPORT_STATUS, NOTIFICATION_TYPES } from '../../constants/hazard.js';
 import { ApiError } from '../../utils/apiError.js';
 import { createNotificationService } from '../notification/service.js';
 import { createAuditLog } from '../../services/audit.service.js';
-import { addReportSubmittedEvent, addReportEditedEvent, addStatusChangedEvent, addAssignedEvent } from '../../services/timeline.service.js';
+import { addReportSubmittedEvent, addReportEditedEvent, addAssignedEvent, buildStatusChangedTimelineEntry } from '../../services/timeline.service.js';
 
+// Normal forward workflow. Skipping stages is never allowed.
 export const VALID_STATUS_TRANSITIONS = {
   [REPORT_STATUS.PENDING]: [REPORT_STATUS.UNDER_REVIEW],
   [REPORT_STATUS.UNDER_REVIEW]: [REPORT_STATUS.IN_PROGRESS],
@@ -16,10 +17,44 @@ export const VALID_STATUS_TRANSITIONS = {
   [REPORT_STATUS.RESOLVED]: [],
 };
 
+// Explicit, exceptional backward transitions (return / reopen).
+// Each of these requires a reason and is audited with a distinct action.
+export const RETURN_STATUS_TRANSITIONS = {
+  [REPORT_STATUS.IN_PROGRESS]: [REPORT_STATUS.UNDER_REVIEW],
+  [REPORT_STATUS.RESOLVED]: [REPORT_STATUS.IN_PROGRESS, REPORT_STATUS.UNDER_REVIEW],
+};
+
 export const canTransitionStatus = (fromStatus, toStatus) => {
   const allowed = VALID_STATUS_TRANSITIONS[fromStatus] || [];
   return allowed.includes(toStatus);
 };
+
+export const canReturnStatus = (fromStatus, toStatus) => {
+  const allowed = RETURN_STATUS_TRANSITIONS[fromStatus] || [];
+  return allowed.includes(toStatus);
+};
+
+export const classifyStatusTransition = (fromStatus, toStatus) => {
+  if (canTransitionStatus(fromStatus, toStatus)) return 'forward';
+  if (canReturnStatus(fromStatus, toStatus)) return 'return';
+  return null;
+};
+
+const STATUS_LABELS = {
+  [REPORT_STATUS.PENDING]: 'Pending',
+  [REPORT_STATUS.UNDER_REVIEW]: 'Under Review',
+  [REPORT_STATUS.IN_PROGRESS]: 'In Progress',
+  [REPORT_STATUS.RESOLVED]: 'Resolved',
+};
+
+const FORWARD_STATUS_MESSAGES = {
+  [REPORT_STATUS.UNDER_REVIEW]: 'Your report is now under review',
+  [REPORT_STATUS.IN_PROGRESS]: 'Work has begun on your report',
+  [REPORT_STATUS.RESOLVED]: 'Your report has been resolved',
+};
+
+export const RETURN_REASON_MIN_LENGTH = 10;
+export const RETURN_REASON_MAX_LENGTH = 500;
 
 export const createReportService = async (data, studentAccountId) => {
   const studentAccount = await StudentAccount.findById(studentAccountId);
@@ -239,72 +274,166 @@ export const getReportByIdService = async (reportId, userRole, userFaculty, user
   return report;
 };
 
-export const updateReportStatusService = async (reportId, status, note, adminId, adminModel) => {
+export const updateReportStatusService = async (
+  reportId,
+  { status, currentStatus, note, reason, adminId, adminModel }
+) => {
   const report = await HazardReport.findById(reportId);
 
   if (!report) {
     throw new ApiError(404, 'Report not found');
   }
 
-  if (!canTransitionStatus(report.status, status)) {
+  // Optimistic concurrency: the client must state the status it is acting on.
+  if (report.status !== currentStatus) {
     throw new ApiError(
-      400,
-      `Invalid status transition from "${report.status}" to "${status}". Allowed: ${(VALID_STATUS_TRANSITIONS[report.status] || []).join(', ') || 'none (terminal state)'}`
+      409,
+      'This report was updated by someone else. Please refresh and try again.'
     );
   }
 
-  report.status = status;
-  report.statusHistory.push({
+  const transitionType = classifyStatusTransition(report.status, status);
+
+  if (!transitionType) {
+    const allowed = [
+      ...(VALID_STATUS_TRANSITIONS[report.status] || []),
+      ...(RETURN_STATUS_TRANSITIONS[report.status] || []),
+    ];
+    throw new ApiError(
+      400,
+      `Invalid status transition from "${report.status}" to "${status}". Allowed: ${allowed.join(', ') || 'none (terminal state)'}`
+    );
+  }
+
+  const isReturn = transitionType === 'return';
+  const trimmedNote = typeof note === 'string' ? note.trim() : '';
+  let storedNote = trimmedNote;
+
+  if (isReturn) {
+    const trimmedReason = typeof reason === 'string' ? reason.trim() : '';
+    if (trimmedReason.length < RETURN_REASON_MIN_LENGTH) {
+      throw new ApiError(
+        400,
+        `A reason of at least ${RETURN_REASON_MIN_LENGTH} characters is required to return or reopen a report`
+      );
+    }
+    if (trimmedReason.length > RETURN_REASON_MAX_LENGTH) {
+      throw new ApiError(
+        400,
+        `Reason cannot exceed ${RETURN_REASON_MAX_LENGTH} characters`
+      );
+    }
+    storedNote = trimmedReason;
+  } else if (storedNote.length > RETURN_REASON_MAX_LENGTH) {
+    throw new ApiError(
+      400,
+      `Note cannot exceed ${RETURN_REASON_MAX_LENGTH} characters`
+    );
+  }
+
+  const admin = await EnvironmentalAdmin.findById(adminId).select('fullName');
+  const adminName = admin?.fullName || 'Environmental Admin';
+  const previousStatus = report.status;
+  const now = new Date();
+
+  const timelineEntry = buildStatusChangedTimelineEntry({
     status,
-    changedBy: adminId,
-    changedByModel: adminModel,
-    note: note || undefined,
-    changedAt: new Date(),
+    previousStatus,
+    actor: adminId,
+    actorModel: adminModel,
+    actorName: adminName,
+    note: storedNote || undefined,
+    isReturn,
   });
 
-  await report.save();
+  // Single atomic write covering current status, statusHistory and timeline so a
+  // failure cannot leave history/timeline partially updated.
+  const updatedReport = await HazardReport.findOneAndUpdate(
+    { _id: reportId, status: previousStatus },
+    {
+      $set: {
+        status,
+        resolvedAt: status === REPORT_STATUS.RESOLVED ? now : null,
+      },
+      $push: {
+        statusHistory: {
+          status,
+          previousStatus,
+          changedBy: adminId,
+          changedByModel: adminModel,
+          note: storedNote || undefined,
+          isReturn,
+          changedAt: now,
+        },
+        timeline: {
+          eventType: timelineEntry.eventType,
+          description: timelineEntry.description,
+          actor: timelineEntry.actor,
+          actorModel: timelineEntry.actorModel,
+          actorName: timelineEntry.actorName,
+          metadata: timelineEntry.metadata,
+          createdAt: now,
+        },
+      },
+    },
+    { new: true, runValidators: true }
+  );
 
-  const statusMessages = {
-    [REPORT_STATUS.UNDER_REVIEW]: 'Your report is now under review',
-    [REPORT_STATUS.IN_PROGRESS]: 'Work has begun on your report',
-    [REPORT_STATUS.RESOLVED]: 'Your report has been resolved',
-  };
+  if (!updatedReport) {
+    throw new ApiError(
+      409,
+      'This report was updated by someone else. Please refresh and try again.'
+    );
+  }
 
+  const statusLabel = STATUS_LABELS[status] || status;
+  const previousLabel = STATUS_LABELS[previousStatus] || previousStatus;
+
+  // Exactly one notification per successful status change (return reasons included).
   createNotificationService({
-    recipientId: report.reportedBy,
+    recipientId: updatedReport.reportedBy,
     recipientModel: 'StudentAccount',
     type: NOTIFICATION_TYPES.REPORT_STATUS_CHANGED,
-    title: 'Report Status Updated',
-    message: statusMessages[status] || `Report status changed to ${status}`,
+    title: isReturn ? 'Report Returned' : 'Report Status Updated',
+    message: isReturn
+      ? `Your report was returned to ${statusLabel}. Reason: ${storedNote}`
+      : FORWARD_STATUS_MESSAGES[status] || `Report status changed to ${statusLabel}`,
     relatedEntityType: 'Report',
-    relatedEntityId: report._id,
+    relatedEntityId: updatedReport._id,
     metadata: {
-      previousStatus: report.statusHistory[report.statusHistory.length - 2]?.status,
+      previousStatus,
       newStatus: status,
-      note,
+      reason: isReturn ? storedNote : undefined,
+      note: storedNote || undefined,
+      isReturn,
     },
   });
 
-  addStatusChangedEvent(report._id, status, adminId, adminModel, null, note);
-
   const adminLabel = adminModel === 'EnvironmentalAdmin' ? 'Environmental Admin' : 'Faculty Admin';
+  const action = isReturn
+    ? previousStatus === REPORT_STATUS.RESOLVED
+      ? 'reopen_report'
+      : 'return_report'
+    : 'update_report_status';
+  const description = isReturn
+    ? `${adminLabel} reopened report from ${previousLabel} to ${statusLabel}: ${storedNote}`
+    : `${adminLabel} changed report status to ${statusLabel}${storedNote ? `: ${storedNote}` : ''}`;
 
   createAuditLog({
     actor: adminId,
     actorModel: adminModel,
-    action: 'update_report_status',
+    actorName: adminName,
+    action,
     entityType: 'Report',
-    entityId: report._id,
-    description: `${adminLabel} changed report status to ${status}${note ? `: ${note}` : ''}`,
-    faculty: report.faculty,
+    entityId: updatedReport._id,
+    description,
+    faculty: updatedReport.faculty,
   });
 
-  const updatedReport = await HazardReport.findById(reportId)
+  return HazardReport.findById(reportId)
     .populate('reportedBy', 'registrationNumber')
     .populate('faculty', 'name')
     .populate('statusHistory.changedBy', 'fullName');
-
-  return updatedReport;
 };
 
 export const assignReportService = async (reportId, adminId, actorId) => {

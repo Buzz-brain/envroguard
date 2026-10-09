@@ -67,6 +67,7 @@ const hazardReportSchema = new mongoose.Schema(
     statusHistory: [
       {
         status: { type: String, required: true },
+        previousStatus: { type: String },
         changedBy: {
           type: mongoose.Schema.Types.ObjectId,
           refPath: 'statusHistory.changedByModel',
@@ -76,6 +77,7 @@ const hazardReportSchema = new mongoose.Schema(
           enum: ['EnvironmentalAdmin'],
         },
         note: { type: String, trim: true },
+        isReturn: { type: Boolean, default: false },
         changedAt: { type: Date, default: Date.now },
       },
     ],
@@ -114,8 +116,9 @@ hazardReportSchema.index({ 'studentInfo.registrationNumber': 1 });
 hazardReportSchema.index({ 'location.coordinates': '2dsphere' });
 
 hazardReportSchema.pre('save', function (next) {
-  if (this.isModified('status') && this.status === REPORT_STATUS.RESOLVED) {
-    this.resolvedAt = new Date();
+  if (this.isModified('status')) {
+    this.resolvedAt =
+      this.status === REPORT_STATUS.RESOLVED ? new Date() : null;
   }
   next();
 });

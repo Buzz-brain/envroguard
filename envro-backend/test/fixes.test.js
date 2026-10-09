@@ -154,6 +154,13 @@ const waitFor = async (fn, timeoutMs = 3000) => {
   return null;
 };
 
+const setStatus = (token, reportId, status, currentStatus, extra = {}) =>
+  get(token, `${BASE}/reports/${reportId}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status, currentStatus, ...extra }),
+  });
+
 test('Issue 1: assign report only to an EnvironmentalAdmin; recipient is EnvironmentalAdmin', async () => {
   const t = tokens();
   const res = await get(t.env1, `${BASE}/reports/${f.reportA._id}/assign`, {
@@ -254,14 +261,14 @@ test('Issue 4: valid status transitions succeed, invalid/backward transitions ar
   const toReview = await get(t.env1, `${BASE}/reports/${f.reportA._id}/status`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status: 'under_review', note: 'reviewing' }),
+    body: JSON.stringify({ status: 'under_review', currentStatus: 'pending', note: 'reviewing' }),
   });
   assert.equal(toReview.status, 200, await toReview.text());
 
   const invalidJump = await get(t.env1, `${BASE}/reports/${f.reportA._id}/status`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status: 'resolved', note: 'skip ahead' }),
+    body: JSON.stringify({ status: 'resolved', currentStatus: 'under_review', note: 'skip ahead' }),
   });
   assert.equal(invalidJump.status, 400);
 
@@ -273,14 +280,14 @@ test('Issue 4: valid status transitions succeed, invalid/backward transitions ar
   const toProgress = await get(t.env1, `${BASE}/reports/${f.reportA._id}/status`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status: 'in_progress', note: 'working on it' }),
+    body: JSON.stringify({ status: 'in_progress', currentStatus: 'under_review', note: 'working on it' }),
   });
   assert.equal(toProgress.status, 200);
 
   const toResolved = await get(t.env1, `${BASE}/reports/${f.reportA._id}/status`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status: 'resolved', note: 'done' }),
+    body: JSON.stringify({ status: 'resolved', currentStatus: 'in_progress', note: 'done' }),
   });
   assert.equal(toResolved.status, 200);
   const resolved = await HazardReport.findById(f.reportA._id);
@@ -290,7 +297,7 @@ test('Issue 4: valid status transitions succeed, invalid/backward transitions ar
   const backward = await get(t.env1, `${BASE}/reports/${f.reportA._id}/status`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status: 'pending', note: 'reopen' }),
+    body: JSON.stringify({ status: 'pending', currentStatus: 'resolved', note: 'reopen' }),
   });
   assert.equal(backward.status, 400);
   const afterBackward = await HazardReport.findById(f.reportA._id);
@@ -304,6 +311,127 @@ test('Issue 4b: transition map is well-formed', () => {
   assert.deepEqual(VALID_STATUS_TRANSITIONS.under_review, ['in_progress']);
   assert.deepEqual(VALID_STATUS_TRANSITIONS.in_progress, ['resolved']);
   assert.deepEqual(VALID_STATUS_TRANSITIONS.resolved, []);
+});
+
+test('Return: in_progress -> under_review requires a reason and is recorded as a return', async () => {
+  const t = tokens();
+  await setStatus(t.env1, f.reportA._id, 'under_review', 'pending');
+  await setStatus(t.env1, f.reportA._id, 'in_progress', 'under_review');
+
+  const missing = await setStatus(t.env1, f.reportA._id, 'under_review', 'in_progress');
+  assert.equal(missing.status, 400, 'return without a reason must be rejected');
+
+  const shortReason = await setStatus(t.env1, f.reportA._id, 'under_review', 'in_progress', { reason: 'nope' });
+  assert.equal(shortReason.status, 400, 'reason below the minimum length must be rejected');
+
+  let doc = await HazardReport.findById(f.reportA._id);
+  assert.equal(doc.status, 'in_progress', 'rejected returns must not change status');
+
+  const ok = await setStatus(t.env1, f.reportA._id, 'under_review', 'in_progress', { reason: 'Waste disposal was incomplete.' });
+  assert.equal(ok.status, 200, await ok.text());
+
+  doc = await HazardReport.findById(f.reportA._id);
+  assert.equal(doc.status, 'under_review');
+  const last = doc.statusHistory[doc.statusHistory.length - 1];
+  assert.equal(last.isReturn, true, 'status history must flag the return');
+  assert.equal(last.previousStatus, 'in_progress');
+  assert.equal(last.note, 'Waste disposal was incomplete.');
+
+  const audit = await AuditLog.findOne({ action: 'return_report', entityId: f.reportA._id });
+  assert.ok(audit, 'return must be audited as return_report');
+  assert.equal(audit.actorModel, 'EnvironmentalAdmin');
+});
+
+test('Reopen: resolved -> in_progress clears resolvedAt and is audited as reopen_report', async () => {
+  const t = tokens();
+  await setStatus(t.env1, f.reportA._id, 'under_review', 'pending');
+  await setStatus(t.env1, f.reportA._id, 'in_progress', 'under_review');
+  await setStatus(t.env1, f.reportA._id, 'resolved', 'in_progress');
+
+  let doc = await HazardReport.findById(f.reportA._id);
+  const firstResolvedAt = doc.resolvedAt;
+  assert.ok(firstResolvedAt, 'resolvedAt should be set while resolved');
+
+  const reopen = await setStatus(t.env1, f.reportA._id, 'in_progress', 'resolved', { reason: 'The flooding has returned after the storm.' });
+  assert.equal(reopen.status, 200, await reopen.text());
+
+  doc = await HazardReport.findById(f.reportA._id);
+  assert.equal(doc.status, 'in_progress');
+  assert.equal(doc.resolvedAt, null, 'resolvedAt must be cleared when leaving resolved');
+  const last = doc.statusHistory[doc.statusHistory.length - 1];
+  assert.equal(last.isReturn, true);
+  assert.equal(last.previousStatus, 'resolved');
+
+  const audit = await AuditLog.findOne({ action: 'reopen_report', entityId: f.reportA._id });
+  assert.ok(audit, 'reopen must be audited as reopen_report');
+
+  const reResolve = await setStatus(t.env1, f.reportA._id, 'resolved', 'in_progress');
+  assert.equal(reResolve.status, 200, await reResolve.text());
+  doc = await HazardReport.findById(f.reportA._id);
+  assert.equal(doc.status, 'resolved');
+  assert.ok(doc.resolvedAt, 're-resolving must set a new resolvedAt');
+  assert.ok(new Date(doc.resolvedAt) >= new Date(firstResolvedAt), 'new resolution timestamp must not predate the previous one');
+});
+
+test('Reopen: resolved -> under_review is allowed with a reason', async () => {
+  const t = tokens();
+  await setStatus(t.env1, f.reportA._id, 'under_review', 'pending');
+  await setStatus(t.env1, f.reportA._id, 'in_progress', 'under_review');
+  await setStatus(t.env1, f.reportA._id, 'resolved', 'in_progress');
+
+  const res = await setStatus(t.env1, f.reportA._id, 'under_review', 'resolved', { reason: 'Needs a second review after complaints.' });
+  assert.equal(res.status, 200, await res.text());
+  const doc = await HazardReport.findById(f.reportA._id);
+  assert.equal(doc.status, 'under_review');
+  assert.equal(doc.resolvedAt, null);
+});
+
+test('Concurrency: a stale currentStatus returns 409 without changing the report', async () => {
+  const t = tokens();
+  const res = await setStatus(t.env1, f.reportA._id, 'under_review', 'resolved');
+  assert.equal(res.status, 409, 'stale client status must be rejected with 409');
+  const doc = await HazardReport.findById(f.reportA._id);
+  assert.equal(doc.status, 'pending');
+  assert.equal(doc.statusHistory.length, 0);
+});
+
+test('Authorization: FacultyAdmin cannot update or return report status (403)', async () => {
+  const t = tokens();
+  const res = await setStatus(t.fa, f.reportA._id, 'under_review', 'pending', { reason: 'Trying to bypass RBAC.' });
+  assert.equal(res.status, 403);
+  const studentRes = await setStatus(t.student, f.reportA._id, 'under_review', 'pending');
+  assert.equal(studentRes.status, 403, 'students cannot update report status');
+  const doc = await HazardReport.findById(f.reportA._id);
+  assert.equal(doc.status, 'pending');
+});
+
+test('Return notifies the reporter exactly once and includes the reason', async () => {
+  const t = tokens();
+  await setStatus(t.env1, f.reportA._id, 'under_review', 'pending');
+  await setStatus(t.env1, f.reportA._id, 'in_progress', 'under_review');
+  await setStatus(t.env1, f.reportA._id, 'under_review', 'in_progress', { reason: 'Visible return reason.' });
+
+  const notifs = await Notification.find({ recipient: f.studentAccount._id, type: 'report_status_changed' });
+  const returns = notifs.filter((n) => n.metadata && n.metadata.isReturn);
+  assert.equal(returns.length, 1, 'exactly one return notification');
+  assert.ok((returns[0].message || '').includes('Visible return reason.'));
+  assert.equal(returns[0].recipientModel, 'StudentAccount');
+});
+
+test('Student can see the return reason in the report history', async () => {
+  const t = tokens();
+  await setStatus(t.env1, f.reportA._id, 'under_review', 'pending');
+  await setStatus(t.env1, f.reportA._id, 'in_progress', 'under_review');
+  await setStatus(t.env1, f.reportA._id, 'under_review', 'in_progress', { reason: 'Please add more site photos.' });
+
+  const res = await get(t.student, `${BASE}/reports/${f.reportA._id}`);
+  const body = await res.json();
+  assert.equal(res.status, 200, JSON.stringify(body));
+  const history = body.data.statusHistory;
+  const last = history[history.length - 1];
+  assert.equal(last.isReturn, true);
+  assert.equal(last.previousStatus, 'in_progress');
+  assert.equal(last.note, 'Please add more site photos.');
 });
 
 test('Issue 6: audit log identifies real actor for faculty deletion by EnvironmentalAdmin', async () => {
@@ -431,7 +559,7 @@ test('Regression T28: status update notifies reporter (report_status_changed)', 
   await get(t.env1, `${BASE}/reports/${f.reportA._id}/status`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status: 'under_review', note: 'reviewing' }),
+    body: JSON.stringify({ status: 'under_review', currentStatus: 'pending', note: 'reviewing' }),
   });
   const notif = await waitFor(() => Notification.findOne({ type: 'report_status_changed', recipient: f.studentAccount._id }));
   assert.ok(notif, 'reporter should be notified of status change');

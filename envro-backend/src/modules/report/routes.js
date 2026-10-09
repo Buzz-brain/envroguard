@@ -40,12 +40,15 @@ router.get('/', authorize(ROLES.ENVIRONMENTAL_ADMIN, ROLES.FACULTY_ADMIN, ROLES.
 router.get('/:id', authorize(ROLES.ENVIRONMENTAL_ADMIN, ROLES.FACULTY_ADMIN, ROLES.DEPARTMENT_ADMIN, ROLES.STUDENT), reportController.getReportById);
 
 // Status updates — environmental admin only
+// Success is audited by the service with a transition-specific action
+// (update_report_status / return_report / reopen_report); failures are
+// recorded here as update_status_failed.
 router.patch(
   '/:id/status',
   authorize(ROLES.ENVIRONMENTAL_ADMIN),
   reportValidation.updateReportStatus,
   validate,
-  logAction('HazardReport', 'update_status'),
+  logAction('HazardReport', 'update_status', { logSuccess: false }),
   reportController.updateReportStatus
 );
 

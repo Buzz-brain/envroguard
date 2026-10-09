@@ -52,9 +52,11 @@ export interface ReportImage {
 
 export interface StatusHistoryEntry {
   status: ReportStatus;
+  previousStatus?: ReportStatus;
   changedBy: string;
   changedByModel: 'EnvironmentalAdmin';
   note?: string;
+  isReturn?: boolean;
   changedAt: string;
 }
 

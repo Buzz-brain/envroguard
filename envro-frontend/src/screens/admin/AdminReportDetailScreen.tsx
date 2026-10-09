@@ -11,6 +11,8 @@ import {
   Modal,
   ActivityIndicator,
   Platform,
+  TextInput,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBadge } from '../../components/ui/StatusBadge';
@@ -71,6 +73,23 @@ const transitionMap: Record<ReportStatus, ReportStatus[]> = {
 const getAllowedActions = (currentStatus: ReportStatus) =>
   statusActions.filter((action) => (transitionMap[currentStatus] || []).includes(action.status));
 
+// Exceptional backward transitions. Must mirror the backend policy.
+const RETURN_REASON_MIN = 10;
+const returnActions: {
+  label: string;
+  status: ReportStatus;
+  color: string;
+  icon: string;
+  from: ReportStatus[];
+}[] = [
+  { label: 'Return to Under Review', status: 'under_review', color: '#D97706', icon: 'arrow-undo-outline', from: ['in_progress'] },
+  { label: 'Reopen Report', status: 'in_progress', color: '#D97706', icon: 'refresh-outline', from: ['resolved'] },
+  { label: 'Reopen for Re-review', status: 'under_review', color: '#D97706', icon: 'refresh-outline', from: ['resolved'] },
+];
+
+const getReturnActions = (currentStatus: ReportStatus) =>
+  returnActions.filter((action) => action.from.includes(currentStatus));
+
 export default function AdminReportDetailScreen({ route, navigation }: any) {
   const colors = useColors();
   const styles = getStyles(colors);
@@ -80,6 +99,9 @@ export default function AdminReportDetailScreen({ route, navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
+  const [returnTarget, setReturnTarget] = useState<{ status: ReportStatus; label: string } | null>(null);
+  const [returnReason, setReturnReason] = useState('');
+  const [returnError, setReturnError] = useState<string | null>(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [envAdmins, setEnvAdmins] = useState<any[]>([]);
   const [assigning, setAssigning] = useState(false);
@@ -140,15 +162,64 @@ export default function AdminReportDetailScreen({ route, navigation }: any) {
     ]);
   };
 
-  const handleStatusUpdate = async (status: ReportStatus) => {
+  const performStatusUpdate = async (status: ReportStatus, reason?: string) => {
+    if (!report) return;
     setUpdating(true);
     try {
-      const { data } = await reportsApi.updateReportStatus(reportId, status);
+      // Send the status we are acting on so the backend can reject stale requests.
+      const { data } = await reportsApi.updateReportStatus(reportId, status, report.status, undefined, reason);
       if (data.success) setReport(data.data);
-      ToastService.success('Status Updated', 'Report status changed successfully.');
+      ToastService.success(
+        reason ? 'Report Returned' : 'Status Updated',
+        reason ? 'The report was returned successfully.' : 'Report status changed successfully.'
+      );
     } catch (err: any) {
-      ToastService.error('Error', err.response?.data?.message || 'Failed to update status');
+      if (err.response?.status === 409) {
+        ToastService.error('Report Changed', 'Someone else already updated this report. The latest status has been loaded.');
+        await fetchReport();
+      } else {
+        ToastService.error('Error', err.response?.data?.message || 'Failed to update status');
+      }
     } finally { setUpdating(false); }
+  };
+
+  const confirmForward = (action: { label: string; status: ReportStatus }) => {
+    if (!report) return;
+    Alert.alert(
+      'Confirm Status Change',
+      `Are you sure you want to change this report's status from ${statusLabels[report.status] || report.status} to ${action.label}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Confirm', onPress: () => performStatusUpdate(action.status) },
+      ]
+    );
+  };
+
+  const openReturnModal = (action: { label: string; status: ReportStatus }) => {
+    setReturnTarget({ status: action.status, label: action.label });
+    setReturnReason('');
+    setReturnError(null);
+  };
+
+  const closeReturnModal = () => {
+    setReturnTarget(null);
+    setReturnReason('');
+    setReturnError(null);
+  };
+
+  const submitReturn = () => {
+    if (!report || !returnTarget) return;
+    const trimmed = returnReason.trim();
+    if (trimmed.length < RETURN_REASON_MIN) {
+      setReturnError(`Please provide a reason of at least ${RETURN_REASON_MIN} characters.`);
+      return;
+    }
+    if (trimmed.length > 500) {
+      setReturnError('Reason cannot exceed 500 characters.');
+      return;
+    }
+    const target = returnTarget;
+    performStatusUpdate(target.status, trimmed).then(closeReturnModal);
   };
 
   if (loading) return <SkeletonDetail />;
@@ -307,7 +378,7 @@ export default function AdminReportDetailScreen({ route, navigation }: any) {
                   <TouchableOpacity
                     key={action.status}
                     style={[styles.statusBtn, isCurrent && { backgroundColor: action.color + '18', borderColor: action.color }]}
-                    onPress={() => handleStatusUpdate(action.status)}
+                    onPress={() => confirmForward(action)}
                     disabled={updating || isCurrent}
                     activeOpacity={0.7}
                   >
@@ -328,6 +399,33 @@ export default function AdminReportDetailScreen({ route, navigation }: any) {
                 <Ionicons name="chevron-forward" size={16} color={colors.primary} style={{ marginLeft: 'auto' }} />
               </TouchableOpacity>
             )}
+          </View>
+        )}
+
+        {/* ── Return / Reopen (exceptional) ── */}
+        {canUpdateStatus && getReturnActions(report.status).length > 0 && (
+          <View style={[styles.sectionCard, styles.returnCard]}>
+            <View style={styles.sectionHead}>
+              <Ionicons name="arrow-undo-outline" size={18} color="#D97706" />
+              <Text style={[styles.sectionLabel, { color: '#D97706' }]}>Return / Reopen</Text>
+            </View>
+            <Text style={styles.returnHint}>
+              Use these only when the report needs further work. A reason is required and will be shown to the student.
+            </Text>
+            <View style={styles.statusGrid}>
+              {getReturnActions(report.status).map((action) => (
+                <TouchableOpacity
+                  key={`${report.status}-${action.status}`}
+                  style={[styles.statusBtn, styles.returnBtn]}
+                  onPress={() => openReturnModal(action)}
+                  disabled={updating}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name={action.icon as any} size={18} color="#D97706" />
+                  <Text style={[styles.statusBtnText, { color: '#D97706' }]}>{action.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
         )}
 
@@ -371,6 +469,14 @@ export default function AdminReportDetailScreen({ route, navigation }: any) {
                       <View style={[styles.timelineStatusBadge, { backgroundColor: sc + '15' }]}>
                         <Text style={[styles.timelineStatusText, { color: sc }]}>{statusLabels[entry.status] || entry.status}</Text>
                       </View>
+                      {entry.isReturn && (
+                        <View style={styles.returnBadge}>
+                          <Ionicons name="arrow-undo" size={11} color="#B45309" />
+                          <Text style={styles.returnBadgeText}>
+                            {entry.previousStatus === 'resolved' ? 'Reopened' : 'Returned for further work'}
+                          </Text>
+                        </View>
+                      )}
                       {entry.note && <Text style={styles.timelineNote}>{entry.note}</Text>}
                       <Text style={styles.timelineDate}>{formatFullDateExtended(entry.changedAt)}</Text>
                     </View>
@@ -429,6 +535,49 @@ export default function AdminReportDetailScreen({ route, navigation }: any) {
             )}
           </View>
         </View>
+      </Modal>
+
+      {/* ── Return / Reopen Modal ── */}
+      <Modal visible={!!returnTarget} transparent animationType="slide" onRequestClose={closeReturnModal}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{returnTarget?.label}</Text>
+              <TouchableOpacity onPress={closeReturnModal} style={styles.modalClose}>
+                <Ionicons name="close" size={22} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.returnCurrent}>
+              Current status: {report ? statusLabels[report.status] || report.status : ''}
+            </Text>
+            <Text style={styles.returnLabel}>Reason for returning the report</Text>
+            <TextInput
+              style={styles.returnInput}
+              value={returnReason}
+              onChangeText={(text) => {
+                setReturnReason(text);
+                if (returnError) setReturnError(null);
+              }}
+              placeholder="e.g. The waste disposal was incomplete, and further action is required."
+              placeholderTextColor={colors.textTertiary}
+              multiline
+              numberOfLines={4}
+              maxLength={500}
+              editable={!updating}
+            />
+            <Text style={[styles.returnCount, returnReason.trim().length < RETURN_REASON_MIN && { color: colors.danger }]}>
+              {returnReason.trim().length}/500 · minimum {RETURN_REASON_MIN}
+            </Text>
+            {returnError && <Text style={styles.returnError}>{returnError}</Text>}
+            <View style={styles.modalActions}>
+              <Button title="Cancel" variant="outline" onPress={closeReturnModal} style={styles.modalActionBtn} />
+              <Button title="Confirm Return" onPress={submitReturn} loading={updating} style={styles.modalActionBtn} />
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <ImagePreview visible={!!previewImage} imageUrl={previewImage} onClose={() => setPreviewImage(null)} />
@@ -637,6 +786,76 @@ const getStyles = (c: typeof lightColors) => StyleSheet.create({
     ...typography.bodySmall,
     color: c.primary,
     fontWeight: '600',
+  },
+
+  // ── Return / Reopen ──
+  returnCard: {
+    borderColor: '#FDE68A',
+    borderWidth: 1.5,
+  },
+  returnBtn: {
+    borderColor: '#F59E0B',
+    backgroundColor: '#FFFBEB',
+  },
+  returnHint: {
+    ...typography.bodySmall,
+    color: c.textSecondary,
+    marginBottom: spacing.md,
+  },
+  returnCurrent: {
+    ...typography.bodySmall,
+    color: c.textSecondary,
+    marginBottom: spacing.md,
+  },
+  returnLabel: {
+    ...typography.label,
+    color: c.textSecondary,
+    fontWeight: '600',
+    marginBottom: spacing.sm,
+  },
+  returnInput: {
+    borderWidth: 1.5,
+    borderColor: c.border,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    minHeight: 96,
+    color: c.text,
+    textAlignVertical: 'top',
+  },
+  returnCount: {
+    ...typography.caption,
+    color: c.textTertiary,
+    marginTop: spacing.xs,
+    textAlign: 'right',
+  },
+  returnError: {
+    ...typography.bodySmall,
+    color: c.danger,
+    marginTop: spacing.xs,
+  },
+  returnBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    backgroundColor: '#FEF3C7',
+    borderRadius: borderRadius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    marginTop: spacing.xs,
+  },
+  returnBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#B45309',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginTop: spacing.lg,
+  },
+  modalActionBtn: {
+    flex: 1,
   },
 
   // ── Danger Zone ──

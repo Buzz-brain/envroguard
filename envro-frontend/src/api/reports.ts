@@ -47,8 +47,13 @@ export const reportsApi = {
 
   getReportById: (id: string) => api.get(`/reports/${id}`),
 
-  updateReportStatus: (id: string, status: string, note?: string) =>
-    api.patch(`/reports/${id}/status`, { status, note }),
+  updateReportStatus: (
+    id: string,
+    status: string,
+    currentStatus: string,
+    note?: string,
+    reason?: string
+  ) => api.patch(`/reports/${id}/status`, { status, currentStatus, note, reason }),
 
   assignReport: (id: string, adminId: string) =>
     api.patch(`/reports/${id}/assign`, { adminId }),

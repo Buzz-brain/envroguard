@@ -248,6 +248,14 @@ export default function ReportDetailScreen({ route, navigation }: any) {
                     <View style={[styles.timelineStatusBadge, { backgroundColor: sc + '15' }]}>
                       <Text style={[styles.timelineStatusText, { color: sc }]}>{statusLabels[entry.status] || entry.status}</Text>
                     </View>
+                    {entry.isReturn && (
+                      <View style={styles.returnBadge}>
+                        <Ionicons name="arrow-undo" size={11} color="#B45309" />
+                        <Text style={styles.returnBadgeText}>
+                          {entry.previousStatus === 'resolved' ? 'Reopened' : 'Returned for further work'}
+                        </Text>
+                      </View>
+                    )}
                     {entry.note && (
                       <Text style={styles.timelineNote}>{entry.note}</Text>
                     )}
@@ -591,6 +599,22 @@ const getStyles = (c: typeof lightColors) => StyleSheet.create({
     ...typography.bodySmall,
     color: c.textSecondary,
     marginTop: spacing.xs,
+  },
+  returnBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    backgroundColor: '#FEF3C7',
+    borderRadius: borderRadius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    marginTop: spacing.xs,
+  },
+  returnBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#B45309',
   },
   timelineDate: {
     fontSize: 11,

@@ -46,10 +46,6 @@ export default function SessionScreen() {
           style={styles.logo}
           resizeMode="contain"
         />
-        <View style={styles.brandRow}>
-          <Text style={styles.titleGreen}>Enviro</Text>
-          <Text style={styles.titleBlack}>Guard</Text>
-        </View>
       </Animated.View>
 
       <Animated.View style={[styles.bottomSection, { opacity: fadeAnim }]}> 
@@ -86,30 +82,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingTop: height * 0.08,
   },
-  brandRow: {
-    flexDirection: 'row',
-    marginTop: spacing.md,
-  },
   logo: {
     width: 100,
     height: 100,
     marginBottom: spacing.md,
-  },
-  titleGreen: {
-    fontFamily: 'PlusJakartaSans_700Bold',
-    color: '#059669',
-    fontSize: 34,
-    lineHeight: 40,
-    includeFontPadding: false,
-    textAlign: 'center',
-  },
-  titleBlack: {
-    fontFamily: 'PlusJakartaSans_700Bold',
-    color: '#1F2937',
-    fontSize: 34,
-    lineHeight: 40,
-    includeFontPadding: false,
-    textAlign: 'center',
   },
   bottomSection: {
     alignItems: 'center',
