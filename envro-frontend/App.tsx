@@ -81,15 +81,11 @@ export default function App() {
     return (
       <View style={styles.splash}>
         <Image
-          source={require('./proposed-assets/EnviroGuardIcon.png')}
+          source={require('./assets/shield-only.png')}
           style={styles.splashLogo}
           resizeMode="contain"
         />
-        <View style={{ flexDirection: 'row', marginTop: 24, marginBottom: 32 }}>
-          <Text style={styles.splashTitleGreen}>Enviro</Text>
-          <Text style={styles.splashTitleBlack}>Guard</Text>
-        </View>
-        <ActivityIndicator size="large" color="#059669" />
+        <ActivityIndicator size="large" color="#059669" style={{ marginTop: 32 }} />
       </View>
     );
   }
@@ -120,22 +116,6 @@ const styles = StyleSheet.create({
   splashLogo: {
     width: 100,
     height: 100,
-  },
-  splashTitleGreen: {
-    fontFamily: 'PlusJakartaSans_700Bold',
-    fontSize: 34,
-    color: '#059669',
-    lineHeight: 40,
-    includeFontPadding: false,
-    textAlign: 'center',
-  },
-  splashTitleBlack: {
-    fontFamily: 'PlusJakartaSans_700Bold',
-    fontSize: 34,
-    color: '#1F2937',
-    lineHeight: 40,
-    includeFontPadding: false,
-    textAlign: 'center',
   },
   toastBase: {
     flexDirection: 'row',

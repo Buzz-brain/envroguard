@@ -17,6 +17,7 @@ const features = [
 export default function SplashScreen({ onComplete }: { onComplete: () => void }) {
   const logoScale = useRef(new Animated.Value(0.6)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
+  const titleOpacity = useRef(new Animated.Value(0)).current;
   const subtitleOpacity = useRef(new Animated.Value(0)).current;
   const leafOpacity = useRef(new Animated.Value(0)).current;
   const cardOpacity = features.map(() => useRef(new Animated.Value(0)).current);
@@ -33,6 +34,7 @@ export default function SplashScreen({ onComplete }: { onComplete: () => void })
         Animated.timing(logoOpacity, { toValue: 1, duration: 600, useNativeDriver: true }),
         Animated.spring(logoScale, { toValue: 1, useNativeDriver: true, friction: 5, tension: 50 }),
       ]),
+      Animated.timing(titleOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
       Animated.timing(subtitleOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
       Animated.stagger(200, [
         Animated.parallel([
@@ -82,6 +84,11 @@ export default function SplashScreen({ onComplete }: { onComplete: () => void })
           style={[styles.logo, { opacity: logoOpacity, transform: [{ scale: logoScale }] }]}
           resizeMode="contain"
         />
+
+        <Animated.View style={{ opacity: titleOpacity, flexDirection: 'row' }}>
+          <Text style={styles.titleGreen}>Enviro</Text>
+          <Text style={styles.titleBlack}>Guard</Text>
+        </Animated.View>
 
         <Animated.View style={{ opacity: subtitleOpacity }}>
           <Text style={styles.subtitle}>
@@ -184,6 +191,22 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     marginBottom: spacing.lg,
+  },
+  titleGreen: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    color: '#059669',
+    fontSize: 36,
+    lineHeight: 44,
+    includeFontPadding: false,
+    textAlign: 'center',
+  },
+  titleBlack: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    color: '#1F2937',
+    fontSize: 36,
+    lineHeight: 44,
+    includeFontPadding: false,
+    textAlign: 'center',
   },
   subtitle: {
     ...typography.body,
