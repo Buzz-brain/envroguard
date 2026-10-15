@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Card } from '../../components/ui/Card';
@@ -11,6 +11,7 @@ import { useAutoRetry } from '../../hooks/useAutoRetry';
 import { notificationsApi } from '../../api/notifications';
 import { useColors } from '../../contexts/ThemeContext';
 import { formatDate } from '../../utils/helpers';
+import { showConfirm } from '../../utils/dialog';
 import type { Notification } from '../../types';
 
 const PAGE_SIZE = 20;
@@ -71,15 +72,12 @@ export default function NotificationsScreen({ navigation }: any) {
   };
 
   const handleDelete = (id: string) => {
-    Alert.alert('Delete Notification', 'Remove this notification?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => {
-        try {
-          await notificationsApi.delete(id);
-          setNotifications(prev => prev.filter(n => n._id !== id));
-        } catch {}
-      }},
-    ]);
+    showConfirm('Delete Notification', 'Remove this notification?', async () => {
+      try {
+        await notificationsApi.delete(id);
+        setNotifications(prev => prev.filter(n => n._id !== id));
+      } catch {}
+    }, 'Delete');
   };
 
   return (

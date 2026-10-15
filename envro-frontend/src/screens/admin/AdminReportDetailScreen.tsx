@@ -7,7 +7,6 @@ import {
   Image,
   TouchableOpacity,
   Dimensions,
-  Alert,
   Modal,
   ActivityIndicator,
   Platform,
@@ -30,6 +29,7 @@ import { getFriendlyErrorMessage } from '../../services/apiErrors';
 import { useAutoRetry } from '../../hooks/useAutoRetry';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatFullDateExtended } from '../../utils/helpers';
+import { showConfirm } from '../../utils/dialog';
 import type { HazardReport, ReportStatus } from '../../types';
 
 const { width } = Dimensions.get('window');
@@ -102,6 +102,7 @@ export default function AdminReportDetailScreen({ route, navigation }: any) {
   const [returnTarget, setReturnTarget] = useState<{ status: ReportStatus; label: string } | null>(null);
   const [returnReason, setReturnReason] = useState('');
   const [returnError, setReturnError] = useState<string | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<{ status: ReportStatus; label: string } | null>(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [envAdmins, setEnvAdmins] = useState<any[]>([]);
   const [assigning, setAssigning] = useState(false);
@@ -148,18 +149,15 @@ export default function AdminReportDetailScreen({ route, navigation }: any) {
   };
 
   const handleDelete = () => {
-    Alert.alert('Delete Report', 'Are you sure? This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => {
-        try {
-          await reportsApi.deleteReport(reportId);
-          ToastService.success('Report Deleted', 'The report has been removed.');
-          navigation.goBack();
-        } catch (err: any) {
-          ToastService.error('Error', err.response?.data?.message || 'Failed to delete report');
-        }
-      }},
-    ]);
+    showConfirm('Delete Report', 'Are you sure? This cannot be undone.', async () => {
+      try {
+        await reportsApi.deleteReport(reportId);
+        ToastService.success('Report Deleted', 'The report has been removed.');
+        navigation.goBack();
+      } catch (err: any) {
+        ToastService.error('Error', err.response?.data?.message || 'Failed to delete report');
+      }
+    }, 'Delete');
   };
 
   const performStatusUpdate = async (status: ReportStatus, reason?: string) => {
@@ -185,14 +183,15 @@ export default function AdminReportDetailScreen({ route, navigation }: any) {
 
   const confirmForward = (action: { label: string; status: ReportStatus }) => {
     if (!report) return;
-    Alert.alert(
-      'Confirm Status Change',
-      `Are you sure you want to change this report's status from ${statusLabels[report.status] || report.status} to ${action.label}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Confirm', onPress: () => performStatusUpdate(action.status) },
-      ]
-    );
+    setConfirmTarget({ status: action.status, label: action.label });
+  };
+
+  const closeConfirmModal = () => setConfirmTarget(null);
+
+  const submitForward = () => {
+    if (!confirmTarget) return;
+    const target = confirmTarget;
+    performStatusUpdate(target.status).then(closeConfirmModal);
   };
 
   const openReturnModal = (action: { label: string; status: ReportStatus }) => {
@@ -533,6 +532,29 @@ export default function AdminReportDetailScreen({ route, navigation }: any) {
                 ))}
               </ScrollView>
             )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Forward Status Confirmation Modal ── */}
+      <Modal visible={!!confirmTarget} transparent animationType="fade" onRequestClose={closeConfirmModal}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Confirm Status Change</Text>
+              <TouchableOpacity onPress={closeConfirmModal} style={styles.modalClose}>
+                <Ionicons name="close" size={22} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            <Text style={[typography.body, { color: colors.textSecondary, marginTop: spacing.xs }]}>
+              {report && confirmTarget
+                ? `Change this report's status from ${statusLabels[report.status] || report.status} to ${confirmTarget.label}?`
+                : ''}
+            </Text>
+            <View style={styles.modalActions}>
+              <Button title="Cancel" variant="outline" onPress={closeConfirmModal} style={styles.modalActionBtn} />
+              <Button title="Confirm" onPress={submitForward} loading={updating} style={styles.modalActionBtn} />
+            </View>
           </View>
         </View>
       </Modal>

@@ -8,7 +8,6 @@ import {
   Pressable,
   RefreshControl,
   TextInput,
-  Alert,
   Modal,
   ScrollView,
   useWindowDimensions,
@@ -32,6 +31,7 @@ import { ToastService } from '../../services/ToastService';
 import { getFriendlyErrorMessage } from '../../services/apiErrors';
 import { useAutoRetry } from '../../hooks/useAutoRetry';
 import { impactLight, notificationSuccess, notificationError } from '../../utils/haptics';
+import { showAlert } from '../../utils/dialog';
 import type { Student, Department as DeptType } from '../../types';
 
 const PAGE_SIZE = 20;
@@ -303,7 +303,7 @@ export default function StudentsScreen() {
 
   const handleBatchSubmit = async () => {
     const valid = batchRows.every(r => r.registrationNumber && r.fullName && r.email && r.level && (isDeptAdmin || r.department));
-    if (!valid) { Alert.alert('Error', isDeptAdmin ? 'Reg. Number, Name, Email, and Level are required for every row.' : 'All fields including Department are required for every row.'); return; }
+    if (!valid) { showAlert('Error', isDeptAdmin ? 'Reg. Number, Name, Email, and Level are required for every row.' : 'All fields including Department are required for every row.'); return; }
     setBatchSubmitting(true);
     try {
       const { data } = await studentsApi.batchCreate(
