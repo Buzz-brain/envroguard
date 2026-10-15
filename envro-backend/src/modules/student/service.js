@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import { Readable } from 'stream';
 import { Student } from './model.js';
 import { Faculty } from '../faculty/model.js';
+import { Department } from '../department/model.js';
 import { ApiError } from '../../utils/apiError.js';
 import { logger } from '../../utils/logger.js';
 import { createAuditLog, roleToActorModel } from '../../services/audit.service.js';
@@ -333,12 +334,60 @@ export const getStudentByIdService = async (studentId, facultyFilter = null, dep
   return student;
 };
 
-export const updateStudentService = async (studentId, data, facultyFilter = null, departmentCode = null) => {
+const STUDENT_EDITABLE_FIELDS = ['fullName', 'email', 'level', 'isEligible'];
+
+const normalizeEmail = (value) => String(value).trim().toLowerCase();
+
+export const updateStudentService = async (studentId, data, actor = {}) => {
+  const { role, faculty, departmentCode } = actor;
+
   const filters = { _id: studentId };
-  if (facultyFilter) filters.faculty = facultyFilter;
+  if (faculty) filters.faculty = faculty;
   if (departmentCode) filters.department = departmentCode;
 
-  const student = await Student.findOneAndUpdate(filters, data, {
+  const updates = {};
+  for (const field of STUDENT_EDITABLE_FIELDS) {
+    if (data[field] !== undefined) updates[field] = data[field];
+  }
+
+  if (updates.fullName !== undefined) updates.fullName = String(updates.fullName).trim();
+  if (updates.level !== undefined) updates.level = String(updates.level).trim();
+  if (updates.email !== undefined) updates.email = normalizeEmail(updates.email);
+  if (updates.isEligible !== undefined) {
+    updates.isEligible = updates.isEligible === true || updates.isEligible === 'true';
+  }
+
+  // Department changes are scoped to Faculty Admins and must stay within their
+  // own faculty (stored as the department code, matching import/batch flows).
+  if (role === 'facultyAdmin' && data.department !== undefined) {
+    const code = String(data.department).trim().toUpperCase();
+    if (!code) {
+      throw new ApiError(400, 'Department is required');
+    }
+    const dept = await Department.findOne({ code, faculty }).select('code').lean();
+    if (!dept) {
+      throw new ApiError(400, 'Department not found under your faculty');
+    }
+    updates.department = dept.code;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    throw new ApiError(400, 'No valid fields to update');
+  }
+
+  if (updates.email) {
+    const duplicate = await Student.findOne({
+      email: updates.email,
+      _id: { $ne: studentId },
+    })
+      .select('_id')
+      .lean();
+    if (duplicate) {
+      throw new ApiError(409, 'Another student already uses this email address');
+    }
+  }
+
+  const student = await Student.findOneAndUpdate(filters, updates, {
     new: true,
     runValidators: true,
   }).populate('faculty', 'name code');

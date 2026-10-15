@@ -65,8 +65,10 @@ export default function StudentsScreen() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
   const [editLevel, setEditLevel] = useState('');
   const [editDepartment, setEditDepartment] = useState('');
+  const [editIsEligible, setEditIsEligible] = useState<boolean>(true);
   const [savingEdit, setSavingEdit] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -217,18 +219,22 @@ export default function StudentsScreen() {
 
   const handleViewDetail = async (student: Student) => {
     setSelectedStudent(student);
-    setEditName(student.fullName);
-    setEditLevel(String(student.level));
-    setEditDepartment(student.department);
-    setEditing(false);
+        setEditName(student.fullName);
+        setEditEmail(student.email || '');
+        setEditLevel(String(student.level));
+        setEditDepartment(student.department);
+        setEditIsEligible(Boolean(student.isEligible));
+        setEditing(false);
     setDetailLoading(true);
     try {
       const { data } = await studentsApi.getById(student._id);
       if (data.success) {
         setSelectedStudent(data.data);
         setEditName(data.data.fullName);
+        setEditEmail(data.data.email || '');
         setEditLevel(String(data.data.level));
         setEditDepartment(data.data.department);
+        setEditIsEligible(Boolean(data.data.isEligible));
       }
     } catch {}
     finally { setDetailLoading(false); }
@@ -236,21 +242,51 @@ export default function StudentsScreen() {
 
   const handleSaveEdit = async () => {
     if (!selectedStudent) return;
-    if (!editName.trim() || !editLevel.trim() || !editDepartment.trim()) {
+    if (!editName.trim() || !editEmail.trim() || !editLevel.trim() || !editDepartment.trim()) {
       setError('All fields are required'); return;
     }
     setSavingEdit(true);
     try {
-      await studentsApi.update(selectedStudent._id, {
+      const payload: Record<string, unknown> = {
         fullName: editName.trim(),
+        email: editEmail.trim(),
         level: editLevel.trim(),
-        department: editDepartment.trim(),
-      });
-      setSelectedStudent(prev => prev ? { ...prev, fullName: editName.trim(), level: editLevel.trim(), department: editDepartment.trim() } : null);
+        isEligible: editIsEligible,
+      };
+      // Only allow department change for faculty admins (dept admin cannot change department)
+      if (isFacultyAdmin) {
+        payload.department = editDepartment.trim();
+      }
+      await studentsApi.update(selectedStudent._id, payload);
+      setSelectedStudent(prev =>
+        prev
+          ? {
+              ...prev,
+              fullName: editName.trim(),
+              email: editEmail.trim(),
+              level: editLevel.trim(),
+              department: isFacultyAdmin ? editDepartment.trim() : prev.department,
+              isEligible: editIsEligible,
+            }
+          : null
+      );
       setEditing(false);
       impactLight();
       notificationSuccess();
-      setStudents(prev => prev.map(s => s._id === selectedStudent._id ? { ...s, fullName: editName.trim(), level: editLevel.trim(), department: editDepartment.trim() } : s));
+      setStudents(prev =>
+        prev.map(s =>
+          s._id === selectedStudent._id
+            ? {
+                ...s,
+                fullName: editName.trim(),
+                email: editEmail.trim(),
+                level: editLevel.trim(),
+                department: isFacultyAdmin ? editDepartment.trim() : s.department,
+                isEligible: editIsEligible,
+              }
+            : s
+        )
+      );
       ToastService.success('Student Updated', 'Student information saved.');
     } catch (err: any) {
       ToastService.error('Error', err.response?.data?.message || 'Failed to update student');
@@ -532,28 +568,83 @@ export default function StudentsScreen() {
                 <View style={styles.detailFields}>
                   {editing ? (
                     <>
-                      <View style={styles.detailField}>
-                        <Ionicons name="person-outline" size={18} color={colors.primary} />
-                        <View style={{ marginLeft: spacing.md, flex: 1 }}>
-                          <Text style={[typography.caption, { color: colors.textSecondary }]}>Full Name</Text>
-                          <TextInput style={styles.editInput} value={editName} onChangeText={setEditName} />
-                        </View>
-                      </View>
-                      <View style={[styles.detailField, styles.detailFieldBorder]}>
-                        <Ionicons name="business-outline" size={18} color={colors.primary} />
-                        <View style={{ marginLeft: spacing.md, flex: 1 }}>
-                          <Text style={[typography.caption, { color: colors.textSecondary }]}>Department</Text>
-                          <TextInput style={styles.editInput} value={editDepartment} onChangeText={setEditDepartment} />
-                        </View>
-                      </View>
-                      <View style={[styles.detailField, styles.detailFieldBorder]}>
-                        <Ionicons name="trending-up-outline" size={18} color={colors.primary} />
-                        <View style={{ marginLeft: spacing.md, flex: 1 }}>
-                          <Text style={[typography.caption, { color: colors.textSecondary }]}>Level</Text>
-                          <TextInput style={styles.editInput} value={editLevel} onChangeText={setEditLevel} />
-                        </View>
-                      </View>
-                    </>
+                       <View style={styles.detailField}>
+                         <Ionicons name="person-outline" size={18} color={colors.primary} />
+                         <View style={{ marginLeft: spacing.md, flex: 1 }}>
+                           <Text style={[typography.caption, { color: colors.textSecondary }]}>Full Name</Text>
+                           <TextInput style={styles.editInput} value={editName} onChangeText={setEditName} />
+                         </View>
+                       </View>
+                       <View style={[styles.detailField, styles.detailFieldBorder]}>
+                         <Ionicons name="mail-outline" size={18} color={colors.primary} />
+                         <View style={{ marginLeft: spacing.md, flex: 1 }}>
+                           <Text style={[typography.caption, { color: colors.textSecondary }]}>Email</Text>
+                           <TextInput style={styles.editInput} value={editEmail} onChangeText={setEditEmail} keyboardType="email-address" autoCapitalize="none" />
+                         </View>
+                       </View>
+                       <View style={[styles.detailField, styles.detailFieldBorder]}>
+                         <Ionicons name="business-outline" size={18} color={colors.primary} />
+                         <View style={{ marginLeft: spacing.md, flex: 1 }}>
+                           <Text style={[typography.caption, { color: colors.textSecondary }]}>Department</Text>
+                           {isDeptAdmin ? (
+                             <Text style={[typography.body, { color: colors.text, fontWeight: '500', marginTop: 6 }]}>
+                               {editDepartment}
+                             </Text>
+                           ) : (
+                             <View style={[styles.chipRow, { marginTop: 6 }]}>
+                               {(facultyDepts.length ? facultyDepts : departments)
+                                 .filter(d => d.code || (d as any).name)
+                                 .map(d => (
+                                   <TouchableOpacity
+                                     key={d._id}
+                                     style={[styles.chip, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }, editDepartment === (d.code || (d as any).name) && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+                                     onPress={() => setEditDepartment(d.code || (d as any).name)}
+                                   >
+                                     <Text style={[styles.chipText, { color: colors.textSecondary }, editDepartment === (d.code || (d as any).name) && styles.chipTextActive]}>{d.name || d.code}</Text>
+                                   </TouchableOpacity>
+                                 ))}
+                             </View>
+                           )}
+                         </View>
+                       </View>
+                       <View style={[styles.detailField, styles.detailFieldBorder]}>
+                         <Ionicons name="trending-up-outline" size={18} color={colors.primary} />
+                         <View style={{ marginLeft: spacing.md, flex: 1 }}>
+                           <Text style={[typography.caption, { color: colors.textSecondary }]}>Level</Text>
+                           <View style={[styles.chipRow, { marginTop: 6 }]}>
+                             {LEVELS.map(l => (
+                               <TouchableOpacity
+                                 key={l}
+                                 style={[styles.chip, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }, editLevel === l && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+                                 onPress={() => setEditLevel(l)}
+                               >
+                                 <Text style={[styles.chipText, { color: colors.textSecondary }, editLevel === l && styles.chipTextActive]}>{l}</Text>
+                               </TouchableOpacity>
+                             ))}
+                           </View>
+                         </View>
+                       </View>
+                       <View style={[styles.detailField, styles.detailFieldBorder]}>
+                         <Ionicons name="checkmark-circle-outline" size={18} color={colors.primary} />
+                         <View style={{ marginLeft: spacing.md, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                           <Text style={[typography.label, { color: colors.text }]}>Status (Eligible/Active)</Text>
+                           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                             <TouchableOpacity
+                               style={[styles.chip, { backgroundColor: editIsEligible ? colors.primary : colors.surfaceAlt, borderColor: editIsEligible ? colors.primary : colors.border }]}
+                               onPress={() => setEditIsEligible(true)}
+                             >
+                               <Text style={[styles.chipText, { color: editIsEligible ? colors.surface : colors.textSecondary }, editIsEligible && styles.chipTextActive]}>Active</Text>
+                             </TouchableOpacity>
+                             <TouchableOpacity
+                               style={[styles.chip, { backgroundColor: !editIsEligible ? colors.danger : colors.surfaceAlt, borderColor: !editIsEligible ? colors.danger : colors.border }]}
+                               onPress={() => setEditIsEligible(false)}
+                             >
+                               <Text style={[styles.chipText, { color: !editIsEligible ? colors.surface : colors.textSecondary }, !editIsEligible && { color: colors.surface }]}>Inactive</Text>
+                             </TouchableOpacity>
+                           </View>
+                         </View>
+                       </View>
+                     </>
                   ) : (
                     [
                       { label: 'Registration No.', value: selectedStudent.registrationNumber, icon: 'id-card-outline' },

@@ -49,7 +49,7 @@ router.get(
   studentController.getStudentStats
 );
 
-// CRUD — department admin (manage) + faculty admin & environmental admin (read-only)
+// CRUD — department admin & faculty admin (manage) + environmental admin (read-only)
 router.use(authenticate);
 
 router.get('/', authorize(ROLES.DEPARTMENT_ADMIN, ROLES.FACULTY_ADMIN, ROLES.ENVIRONMENTAL_ADMIN), studentController.getAllStudents);
@@ -57,7 +57,7 @@ router.get('/:id', authorize(ROLES.DEPARTMENT_ADMIN, ROLES.FACULTY_ADMIN, ROLES.
 
 router.patch(
   '/:id',
-  authorize(ROLES.DEPARTMENT_ADMIN),
+  authorize(ROLES.DEPARTMENT_ADMIN, ROLES.FACULTY_ADMIN),
   studentValidation.updateStudent,
   validate,
   logAction('Student', 'update'),

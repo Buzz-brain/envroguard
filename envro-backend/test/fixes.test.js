@@ -720,3 +720,113 @@ test('Regression PV-A3: import_students audit log records the DepartmentAdmin (m
   const created = await Student.findOne({ registrationNumber: '30000000002' });
   assert.ok(created, 'imported student should exist');
 });
+
+const patchStudent = (token, studentId, body) =>
+  get(token, `${BASE}/students/${studentId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+test('Regression SE-1: FacultyAdmin can edit fields for own-faculty students only', async () => {
+  const t = tokens();
+
+  const res = await patchStudent(t.fa, f.student._id, {
+    fullName: 'Renamed Student',
+    email: 'renamed@test.com',
+    level: '500',
+    isEligible: false,
+  });
+  assert.equal(res.status, 200, await res.text());
+
+  const updated = await Student.findById(f.student._id);
+  assert.equal(updated.fullName, 'Renamed Student');
+  assert.equal(updated.email, 'renamed@test.com');
+  assert.equal(updated.level, '500');
+  assert.equal(updated.isEligible, false);
+
+  const foreign = await patchStudent(t.fa, f.student2._id, { fullName: 'Hacked' });
+  assert.equal(foreign.status, 404, 'faculty admin must not edit other-faculty students');
+  const untouched = await Student.findById(f.student2._id);
+  assert.equal(untouched.fullName, 'Second Student');
+});
+
+test('Regression SE-2: FacultyAdmin may change department within own faculty only', async () => {
+  const t = tokens();
+
+  const ok = await patchStudent(t.fa, f.student._id, { department: 'ift' });
+  assert.equal(ok.status, 200, await ok.text());
+  let updated = await Student.findById(f.student._id);
+  assert.equal(updated.department, 'IFT');
+
+  const bad = await patchStudent(t.fa, f.student._id, { department: 'CSC-DEPT' });
+  assert.equal(bad.status, 400, 'department outside own faculty must be rejected');
+  updated = await Student.findById(f.student._id);
+  assert.equal(updated.department, 'IFT');
+});
+
+test('Regression SE-3: DepartmentAdmin edit is department-scoped; faculty/department are not mass-assignable', async () => {
+  const t = tokens();
+  const own = await Student.create({
+    registrationNumber: '20998880099',
+    fullName: 'Dept Scoped Student',
+    email: 'deptscoped@test.com',
+    department: 'IFT',
+    faculty: f.facultyA._id,
+    level: '200',
+  });
+
+  const res = await patchStudent(t.da, own._id, {
+    fullName: 'Dept Renamed',
+    isEligible: false,
+    faculty: f.facultyB._id.toString(),
+    department: 'CSC-DEPT',
+  });
+  assert.equal(res.status, 200, await res.text());
+
+  const updated = await Student.findById(own._id);
+  assert.equal(updated.fullName, 'Dept Renamed');
+  assert.equal(updated.isEligible, false);
+  assert.equal(updated.faculty.toString(), f.facultyA._id.toString(), 'faculty must not be reassignable');
+  assert.equal(updated.department, 'IFT', 'department must not be changeable by a department admin');
+
+  const foreign = await Student.create({
+    registrationNumber: '20998880077',
+    fullName: 'Other Dept Student',
+    email: 'otherdept@test.com',
+    department: 'CSC-DEPT',
+    faculty: f.facultyA._id,
+    level: '100',
+  });
+  const denied = await patchStudent(t.da, foreign._id, { fullName: 'Nope' });
+  assert.equal(denied.status, 404, 'department admin must not edit out-of-department students');
+});
+
+test('Regression SE-4: duplicate email is rejected on student update', async () => {
+  const t = tokens();
+  const res = await patchStudent(t.fa, f.student._id, { email: 'student2@test.com' });
+  assert.equal(res.status, 409);
+});
+
+test('Regression SE-5: student update audit log records the real FacultyAdmin actor', async () => {
+  const t = tokens();
+  const res = await patchStudent(t.fa, f.student._id, { fullName: 'Audited Student' });
+  assert.equal(res.status, 200, await res.text());
+
+  const log = await waitFor(() =>
+    AuditLog.findOne({ action: 'update', entityType: 'Student', entityId: f.student._id })
+  );
+  assert.ok(log, 'update_student audit log should exist');
+  assert.equal(log.actor.toString(), f.faA._id.toString());
+  assert.equal(log.actorModel, 'FacultyAdmin');
+  assert.ok(log.actorName, 'actorName should be populated');
+});
+
+test('Regression SE-6: students and environmental admins cannot edit students', async () => {
+  const t = tokens();
+  const studentRes = await patchStudent(t.student, f.student._id, { fullName: 'Hacked' });
+  assert.equal(studentRes.status, 403);
+
+  const envRes = await patchStudent(t.env1, f.student._id, { fullName: 'Hacked' });
+  assert.equal(envRes.status, 403);
+});

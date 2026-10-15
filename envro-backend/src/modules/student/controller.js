@@ -58,12 +58,11 @@ export const getStudentById = asyncHandler(async (req, res) => {
 });
 
 export const updateStudent = asyncHandler(async (req, res) => {
-  const student = await studentService.updateStudentService(
-    req.params.id,
-    req.body,
-    req.user.faculty,
-    req.user.departmentCode
-  );
+  const student = await studentService.updateStudentService(req.params.id, req.body, {
+    role: req.user.role,
+    faculty: req.user.faculty,
+    departmentCode: req.user.departmentCode,
+  });
 
   return apiResponse(res, 200, 'Student updated successfully', student);
 });
