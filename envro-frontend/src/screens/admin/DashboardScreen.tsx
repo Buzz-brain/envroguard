@@ -315,7 +315,7 @@ export default function DashboardScreen({ navigation }: any) {
           <View style={[styles.emptyIconWrap, { backgroundColor: colors.primaryBg }]}>
             <Ionicons name="leaf-outline" size={48} color={colors.primary} />
           </View>
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>Welcome to EnvrioGuard</Text>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>Welcome to EnviroGuard</Text>
           <Text style={[styles.emptySubtitle, { color: colors.textTertiary }]}>
             No environmental reports yet. Once students start submitting reports, your dashboard will come alive with real-time insights.
           </Text>

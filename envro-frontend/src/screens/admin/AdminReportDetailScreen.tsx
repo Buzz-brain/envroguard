@@ -83,8 +83,8 @@ const returnActions: {
   from: ReportStatus[];
 }[] = [
   { label: 'Return to Under Review', status: 'under_review', color: '#D97706', icon: 'arrow-undo-outline', from: ['in_progress'] },
-  { label: 'Reopen Report', status: 'in_progress', color: '#D97706', icon: 'refresh-outline', from: ['resolved'] },
-  { label: 'Reopen for Re-review', status: 'under_review', color: '#D97706', icon: 'refresh-outline', from: ['resolved'] },
+  { label: 'Return to In Progress', status: 'in_progress', color: '#D97706', icon: 'refresh-outline', from: ['resolved'] },
+  { label: 'Return to Under Review', status: 'under_review', color: '#D97706', icon: 'refresh-outline', from: ['resolved'] },
 ];
 
 const getReturnActions = (currentStatus: ReportStatus) =>
@@ -548,12 +548,12 @@ export default function AdminReportDetailScreen({ route, navigation }: any) {
             </View>
             <Text style={[typography.body, { color: colors.textSecondary, marginTop: spacing.xs }]}>
               {report && confirmTarget
-                ? `Change this report's status from ${statusLabels[report.status] || report.status} to ${confirmTarget.label}?`
+                ? `Are you sure you want to change this report's status from ${statusLabels[report.status] || report.status} to ${confirmTarget.label}?`
                 : ''}
             </Text>
             <View style={styles.modalActions}>
-              <Button title="Cancel" variant="outline" onPress={closeConfirmModal} style={styles.modalActionBtn} />
-              <Button title="Confirm" onPress={submitForward} loading={updating} style={styles.modalActionBtn} />
+              <Button title="No" variant="outline" onPress={closeConfirmModal} style={styles.modalActionBtn} />
+              <Button title="Yes" onPress={submitForward} loading={updating} style={styles.modalActionBtn} />
             </View>
           </View>
         </View>
