@@ -6,7 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
 import Toast, { BaseToastProps } from 'react-native-toast-message';
 import { Ionicons } from '@expo/vector-icons';
-import { AuthProvider } from './src/contexts/AuthContext';
+import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { NetworkProvider } from './src/contexts/NetworkContext';
 import NetworkBanner from './src/components/ui/NetworkBanner';
 import RootNavigator from './src/navigation/RootNavigator';
@@ -63,6 +63,15 @@ function AppContent() {
   );
 }
 
+function AppShell() {
+  const { user, logout } = useAuth();
+  return (
+    <ErrorBoundary resetKey={user?.id ?? null} onGoToLogin={logout}>
+      <AppContent />
+    </ErrorBoundary>
+  );
+}
+
 export default function App() {
   const [fontsLoaded] = useFonts({
     'PlusJakartaSans_400Regular': require('@expo-google-fonts/plus-jakarta-sans/400Regular/PlusJakartaSans_400Regular.ttf'),
@@ -96,7 +105,7 @@ export default function App() {
         <SafeAreaProvider>
           <AuthProvider>
             <NetworkProvider>
-              <AppContent />
+              <AppShell />
             </NetworkProvider>
             <StatusBar style="dark" />
           </AuthProvider>

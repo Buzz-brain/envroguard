@@ -5,6 +5,8 @@ import { typography, spacing } from '../../constants';
 
 interface Props {
   children: React.ReactNode;
+  resetKey?: string | number | boolean | null;
+  onGoToLogin?: () => void | Promise<void>;
 }
 
 interface State {
@@ -23,8 +25,21 @@ export class ErrorBoundary extends React.Component<Props, State> {
     console.error('[ErrorBoundary]', error, info.componentStack);
   }
 
+  componentDidUpdate(prevProps: Props) {
+    if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false, error: null });
+    }
+  }
+
   handleReset = () => {
     this.setState({ hasError: false, error: null });
+  };
+
+  handleGoToLogin = async () => {
+    this.setState({ hasError: false, error: null });
+    try {
+      await this.props.onGoToLogin?.();
+    } catch {}
   };
 
   render() {
@@ -42,6 +57,12 @@ export class ErrorBoundary extends React.Component<Props, State> {
             <Ionicons name="refresh" size={18} color="#FFF" />
             <Text style={styles.buttonText}>Try Again</Text>
           </TouchableOpacity>
+          {this.props.onGoToLogin ? (
+            <TouchableOpacity style={styles.secondaryButton} onPress={this.handleGoToLogin} activeOpacity={0.7}>
+              <Ionicons name="log-out-outline" size={18} color="#059669" />
+              <Text style={styles.secondaryButtonText}>Back to Login</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       );
     }
@@ -84,5 +105,18 @@ const styles = StyleSheet.create({
   buttonText: {
     ...typography.button,
     color: '#FFFFFF',
+  },
+  secondaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: 12,
+    marginTop: spacing.md,
+    gap: spacing.sm,
+  },
+  secondaryButtonText: {
+    ...typography.button,
+    color: '#059669',
   },
 });
