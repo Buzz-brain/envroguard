@@ -80,7 +80,7 @@ export default function SplashScreen({ onComplete }: { onComplete: () => void })
 
       <View style={styles.centerContent}>
         <Animated.Image
-          source={require('../../../proposed-assets/EnviroGuardIcon.png')}
+          source={require('../../../assets/shield-only.png')}
           style={[styles.logo, { opacity: logoOpacity, transform: [{ scale: logoScale }] }]}
           resizeMode="contain"
         />
