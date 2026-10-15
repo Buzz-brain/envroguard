@@ -42,7 +42,7 @@ export default function SessionScreen() {
 
       <Animated.View style={[styles.topSection, { opacity: fadeAnim }]}>
         <Image
-          source={require("../../../proposed-assets/EnviroGuardIcon.png")}
+          source={require("../../../assets/shield-only.png")}
           style={styles.logo}
           resizeMode="contain"
         />
