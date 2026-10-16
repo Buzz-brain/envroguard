@@ -325,7 +325,7 @@ export default function AdminReportDetailScreen({ route, navigation }: any) {
             <View style={styles.coordRow}>
               <Ionicons name="compass-outline" size={13} color={colors.textTertiary} style={{ marginRight: 4 }} />
               <Text style={styles.coordText}>
-                {report.location.coordinates[1].toFixed(6)}, {report.location.coordinates[0].toFixed(6)}
+                Lat: {report.location.coordinates[1].toFixed(6)}°, Long: {report.location.coordinates[0].toFixed(6)}°
               </Text>
             </View>
           )}
