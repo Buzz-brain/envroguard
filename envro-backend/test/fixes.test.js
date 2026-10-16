@@ -992,12 +992,18 @@ test('GEO-5: editing coordinates clears the stale place name and refills it', as
   }
 });
 
-test('GEO-6: CSP allows the map tile hosts used by the report detail view', async () => {
+test('GEO-6: CSP allows the Esri tile host and sends a referrer', async () => {
   const res = await get(null, '/health');
   assert.equal(res.status, 200);
 
   const csp = res.headers.get('content-security-policy');
   assert.ok(csp, 'helmet should emit a content-security-policy header');
-  assert.match(csp, /img-src[^;]*tile\.openstreetmap\.org/);
   assert.match(csp, /img-src[^;]*services\.arcgisonline\.com/);
+  // OSM's volunteer tile servers block production apps, so they must not be
+  // reintroduced as a source.
+  assert.ok(!/img-src[^;]*openstreetmap\.org/.test(csp), 'OSM tile host should not be allowlisted');
+
+  const referrer = res.headers.get('referrer-policy');
+  assert.ok(referrer, 'helmet should emit a referrer-policy header');
+  assert.equal(referrer, 'strict-origin-when-cross-origin');
 });

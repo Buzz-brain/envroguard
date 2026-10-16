@@ -20,21 +20,25 @@ app.set('trust proxy', 1);
 
 // ─── Security & Middleware ─────────────────────────────────────────────
 app.use(helmet({
+  // helmet defaults to 'no-referrer', which hides our origin from every
+  // third-party host; some CDNs treat an anonymous request as a policy
+  // violation. Same-origin requests are unaffected.
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   contentSecurityPolicy: {
     directives: {
       ...helmet.contentSecurityPolicy.getDefaultDirectives(),
       'connect-src': ["'self'", 'blob:', 'data:', 'https://api.cloudinary.com', 'https://res.cloudinary.com'],
       // 'img-src' also covers <img>/background tiles loaded by the built web
       // app; without these hosts the map preview renders as "Map unavailable".
-      // CARTO is deliberately absent: their CDN now answers every tile with an
-      // "API key required" placeholder image (HTTP 200), which a browser
-      // cannot treat as an image error.
+      // Neither CARTO (now key-gated) nor tile.openstreetmap.org (their
+      // volunteer servers block production apps) may be reintroduced: both
+      // fail with an HTTP 200 placeholder image, which a browser cannot report
+      // as an image error, so our tile fallback would never trigger.
       'img-src': [
         "'self'",
         'blob:',
         'data:',
         'https://res.cloudinary.com',
-        'https://tile.openstreetmap.org',
         'https://services.arcgisonline.com',
       ],
     },

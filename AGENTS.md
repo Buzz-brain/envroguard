@@ -26,6 +26,11 @@ Campus environmental hazard reporting system.
 - `npx tsc --noEmit` — typecheck
 
 ## Progress log
+- 2026-10-16 — **Tile source fix #2: OSM's volunteer servers block us** (commit + push).
+  - Symptom: map rendered OSM's "Access blocked … tile usage policy" tile — again an **HTTP 200 placeholder image**, so `onError` never fired. Trigger: helmet's default `Referrer-Policy: no-referrer` hid our origin, and OSM's policy tells production apps to use their own tile infrastructure anyway.
+  - `MapPreview.TILE_SOURCES`: **Esri World Street Map primary → Esri World Topo Map fallback** (`services.arcgisonline.com`, keyless, verified real tiles). OSM dropped entirely (a blocked tile must never be a fallback). Attribution `© Esri, HERE, Garmin, © OpenStreetMap contributors`.
+  - `src/app.js`: `img-src` now only `services.arcgisonline.com` for tiles; added helmet `referrerPolicy: strict-origin-when-cross-origin`.
+  - Tests: `GEO-6` asserts Esri allowed, OSM **absent**, referrer-policy value. Backend **44/44**, frontend `tsc` clean.
 - 2026-10-16 — **Native "Open in Maps" fixed** (commit + push).
   - New `src/utils/openMaps.ts` replaces the duplicated per-screen helper (which was `Linking.openURL(webUrl).catch(() => {})` — i.e. failures were **silent no-ops**).
   - **Android** now uses the `geo:lat,lon?q=lat,lon(label)` scheme so the device maps app opens the pin directly (no browser detour); **iOS/web** keep `https://www.google.com/maps/search/...` (Maps app if installed, new tab otherwise). Falls back from `geo:` → web URL → `ToastService.error('Cannot Open Maps', ...)`.
