@@ -26,15 +26,16 @@ app.use(helmet({
       'connect-src': ["'self'", 'blob:', 'data:', 'https://api.cloudinary.com', 'https://res.cloudinary.com'],
       // 'img-src' also covers <img>/background tiles loaded by the built web
       // app; without these hosts the map preview renders as "Map unavailable".
+      // CARTO is deliberately absent: their CDN now answers every tile with an
+      // "API key required" placeholder image (HTTP 200), which a browser
+      // cannot treat as an image error.
       'img-src': [
         "'self'",
         'blob:',
         'data:',
         'https://res.cloudinary.com',
         'https://tile.openstreetmap.org',
-        'https://a.basemaps.cartocdn.com',
-        'https://b.basemaps.cartocdn.com',
-        'https://c.basemaps.cartocdn.com',
+        'https://services.arcgisonline.com',
       ],
     },
   },

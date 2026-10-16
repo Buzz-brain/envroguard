@@ -28,16 +28,20 @@ const PAD = TILE_SIZE;
 // Pixels of movement before a touch counts as a drag instead of a tap.
 const DRAG_THRESHOLD = 5;
 
-// Two keyless raster sources. CARTO (CDN) is tried first; OSM is the fallback.
+// Two keyless raster sources. OSM is the workhorse; Esri World Street Map is
+// the fallback. CARTO is deliberately not used: their basemap CDN now answers
+// every tile with an "API key required" placeholder image (HTTP 200), which a
+// browser cannot report as an image error, so it would silently break the map.
 const TILE_SOURCES = [
-  {
-    attribution: '© OpenStreetMap contributors © CARTO',
-    url: (z: number, x: number, y: number) =>
-      `https://${['a', 'b', 'c'][Math.abs(x) % 3]}.basemaps.cartocdn.com/rastertiles/voyager/${z}/${x}/${y}.png`,
-  },
   {
     attribution: '© OpenStreetMap contributors',
     url: (z: number, x: number, y: number) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`,
+  },
+  {
+    attribution: '© Esri, HERE, Garmin, © OpenStreetMap contributors',
+    // Esri's tile endpoint is ordered {z}/{y}/{x} — y before x.
+    url: (z: number, x: number, y: number) =>
+      `https://services.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/${z}/${y}/${x}`,
   },
 ];
 

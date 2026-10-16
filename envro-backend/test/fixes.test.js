@@ -999,5 +999,5 @@ test('GEO-6: CSP allows the map tile hosts used by the report detail view', asyn
   const csp = res.headers.get('content-security-policy');
   assert.ok(csp, 'helmet should emit a content-security-policy header');
   assert.match(csp, /img-src[^;]*tile\.openstreetmap\.org/);
-  assert.match(csp, /img-src[^;]*a\.basemaps\.cartocdn\.com/);
+  assert.match(csp, /img-src[^;]*services\.arcgisonline\.com/);
 });

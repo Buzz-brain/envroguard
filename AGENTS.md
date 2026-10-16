@@ -26,6 +26,11 @@ Campus environmental hazard reporting system.
 - `npx tsc --noEmit` — typecheck
 
 ## Progress log
+- 2026-10-16 — **Tile source fix: CARTO now requires an API key** (commit + push).
+  - Symptom: map rendered as a grid of "API KEY REQUIRED". CARTO's basemap CDN answers every tile with a **200 OK placeholder image** (~2KB) so the browser's `onError` fallback never fired and the map never fell back to OSM.
+  - `MapPreview.TILE_SOURCES`: **OSM (`tile.openstreetmap.org`) primary → Esri World Street Map fallback** (`services.arcgisonline.com/.../tile/{z}/{y}/{x}` — note **y before x**). Both keyless; verified with real tiles (Ihiagwa/London/NY: OSM 6–33KB, Esri 3.8–40KB vs CARTO's constant 2049B). Attribution strings updated per source.
+  - CSP `img-src` (`src/app.js`): dropped the three `*.basemaps.cartocdn.com` hosts, added `services.arcgisonline.com`.
+  - Tests: `GEO-6` now asserts OSM + Esri hosts. Backend **44/44**, frontend `tsc` clean.
 - 2026-10-16 — **Interactive map preview** (drag to pan + zoom controls; no new deps, JS-only → no EAS rebuild).
   - `components/ui/MapPreview.tsx`: `center`/`zoom` state, inverse Web-Mercator math (`worldXToLon`/`worldYToLat`), padded tile ring (one 256px tile beyond the viewport) so small pans refetch nothing, `PanResponder` drag-pan (claims responder on touch start; a <5px release is a tap → `onPress`), zoom `+`/`−` chips (clamped 3–19, dimmed at bounds), and `touchAction:'none'` on web so a touch-drag pans instead of scrolling the page. **Same public API → both detail screens unchanged.**
   - Trade-off: a touch that starts on the map pans it rather than scrolling the page (standard map-widget behaviour).
