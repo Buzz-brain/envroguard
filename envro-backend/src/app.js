@@ -24,7 +24,18 @@ app.use(helmet({
     directives: {
       ...helmet.contentSecurityPolicy.getDefaultDirectives(),
       'connect-src': ["'self'", 'blob:', 'data:', 'https://api.cloudinary.com', 'https://res.cloudinary.com'],
-      'img-src': ["'self'", 'blob:', 'data:', 'https://res.cloudinary.com'],
+      // 'img-src' also covers <img>/background tiles loaded by the built web
+      // app; without these hosts the map preview renders as "Map unavailable".
+      'img-src': [
+        "'self'",
+        'blob:',
+        'data:',
+        'https://res.cloudinary.com',
+        'https://tile.openstreetmap.org',
+        'https://a.basemaps.cartocdn.com',
+        'https://b.basemaps.cartocdn.com',
+        'https://c.basemaps.cartocdn.com',
+      ],
     },
   },
 }));

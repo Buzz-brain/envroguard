@@ -32,6 +32,11 @@ Campus environmental hazard reporting system.
   - Frontend: `Location.placeName?` type; new `components/ui/MapPreview.tsx` (OSM raster tiles + center pin + "© OpenStreetMap contributors", graceful fallback); student `ReportDetailScreen` + admin `AdminReportDetailScreen` show place name, MapPreview, "Open in Maps" (`google.com/maps/search`), raw coords demoted to a caption.
   - **Defect found+fixed:** student report edits silently ignored location/address — `Object.assign(report, update)` with dotted keys (`'location.coordinates'`, `'location.address'`) never persisted. Now `report.set(update)`.
   - Tests: `test/fixes.test.js` **43/43 passing** (added GEO-1..GEO-5: create blocked-free when disabled, backfill, lazy-fill legacy, failure never blocks, coord edit refill; suite now sets `GEOCODE_ENABLED=false` by default with a local Nominatim stub). Frontend `tsc` clean.
+- 2026-10-16 — **Map tile fix + location section polish** (commit + push).
+  - **Root cause of "Map unavailable" on Render:** `src/app.js` helmet CSP `img-src` was `['self','blob:','data:',cloudinary]`, so the browser blocked map tiles. Added `tile.openstreetmap.org` + `a/b/c.basemaps.cartocdn.com` to `img-src` (CSP also gates native/web `<img>`).
+  - `MapPreview` rewritten: CARTO Voyager primary source → OSM fallback → if both fail render **nothing** (no broken placeholder); per-tile errors guarded so stale sources can't knock out a working map.
+  - Hierarchy in both detail screens: labeled **Area** / **Address** rows with tinted icon chips, full-width **Open in Maps** CTA, raw coordinates demoted to an 11px centered caption.
+  - Tests: `test/fixes.test.js` **44/44 passing** (added GEO-6 asserting the CSP allows tile hosts). Frontend `tsc` clean.
 - 2026-09-18 — **FINAL PRODUCTION VERIFICATION + fixes for the 2 found defects** (not yet committed).
   - Ran 49-check read/write probe vs live production API; **47 PASS**, 2 genuine defects found.
   - Verified live: deploy guard (status transitions), assignment (env-admin-only, 404 on FacultyAdmin/nonexistent, 400 on inactive, notification recipient/recipientModel), report by-id scope, department scope, dept/faculty audit attribution, audit endpoint matrix, malformed-filter hardening. Report: `doc/PRODUCTION_VERIFICATION_REPORT.md` (doc/ is gitignored).

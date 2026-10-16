@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,19 @@ import { useColors } from '../../contexts/ThemeContext';
 
 const TILE_SIZE = 256;
 const ZOOM = 16;
+
+// Two keyless raster sources. CARTO (CDN) is tried first; OSM is the fallback.
+const TILE_SOURCES = [
+  {
+    attribution: '© OpenStreetMap contributors © CARTO',
+    url: (z: number, x: number, y: number) =>
+      `https://${['a', 'b', 'c'][Math.abs(x) % 3]}.basemaps.cartocdn.com/rastertiles/voyager/${z}/${x}/${y}.png`,
+  },
+  {
+    attribution: '© OpenStreetMap contributors',
+    url: (z: number, x: number, y: number) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`,
+  },
+];
 
 const lonToWorldX = (lon: number, z: number) => ((lon + 180) / 360) * 2 ** z * TILE_SIZE;
 
@@ -38,25 +51,49 @@ interface MapPreviewProps {
 }
 
 /**
- * Lightweight "map with a pin" built from OpenStreetMap raster tiles.
- * Needs no API key and renders identically on web and native. Falls back to a
- * plain panel if the tiles cannot be loaded.
+ * Lightweight "map with a pin" built from keyless raster tiles. Renders the
+ * same on web and native. If neither tile source can load it renders nothing
+ * so callers can fall back to a plain "open in maps" action instead of a
+ * broken-looking placeholder.
  */
 export function MapPreview({ latitude, longitude, height = 160, style, onPress }: MapPreviewProps) {
   const colors = useColors();
   const styles = getStyles(colors);
   const [width, setWidth] = useState(0);
-  const [tilesFailed, setTilesFailed] = useState(false);
+  const [sourceIndex, setSourceIndex] = useState(0);
+  const [unavailable, setUnavailable] = useState(false);
+  const sourceRef = useRef(0);
 
   const onLayout = useCallback((e: LayoutChangeEvent) => {
     setWidth(e.nativeEvent.layout.width);
   }, []);
+
+  const advanceSource = useCallback(() => {
+    const next = sourceRef.current + 1;
+    if (next >= TILE_SOURCES.length) {
+      setUnavailable(true);
+      return;
+    }
+    sourceRef.current = next;
+    setSourceIndex(next);
+  }, []);
+
+  const onTileError = useCallback(
+    (tileSource: number) => {
+      // Ignore errors from tiles of a source we have already abandoned.
+      if (tileSource !== sourceRef.current) return;
+      advanceSource();
+    },
+    [advanceSource]
+  );
 
   const valid =
     Number.isFinite(latitude) &&
     Number.isFinite(longitude) &&
     Math.abs(latitude) <= 90 &&
     Math.abs(longitude) <= 180;
+
+  const source = TILE_SOURCES[sourceIndex];
 
   const tiles = useMemo(() => {
     if (!valid || width <= 0) return [];
@@ -72,54 +109,43 @@ export function MapPreview({ latitude, longitude, height = 160, style, onPress }
     const minTileY = Math.floor(top / TILE_SIZE);
     const maxTileY = Math.floor((top + height) / TILE_SIZE);
 
-    const result: { key: string; uri: string; left: number; top: number }[] = [];
+    const result: { key: string; uri: string; left: number; top: number; source: number }[] = [];
     for (let ty = minTileY; ty <= maxTileY; ty += 1) {
       if (ty < 0 || ty >= tileCount) continue;
       for (let tx = minTileX; tx <= maxTileX; tx += 1) {
         const wrappedX = ((tx % tileCount) + tileCount) % tileCount;
         result.push({
-          key: `${ZOOM}/${wrappedX}/${ty}`,
-          uri: `https://tile.openstreetmap.org/${ZOOM}/${wrappedX}/${ty}.png`,
+          key: `${sourceIndex}/${ZOOM}/${wrappedX}/${ty}`,
+          uri: source.url(ZOOM, wrappedX, ty),
           left: tx * TILE_SIZE - left,
           top: ty * TILE_SIZE - top,
+          source: sourceIndex,
         });
       }
     }
     return result;
-  }, [valid, width, height, latitude, longitude]);
+  }, [valid, width, height, latitude, longitude, source, sourceIndex]);
 
-  const pinOffset = 26;
+  if (!valid || unavailable) return null;
 
   const content = (
     <View style={[styles.container, { height }, style]} onLayout={onLayout}>
-      {!tilesFailed &&
-        tiles.map((tile) => (
-          <Image
-            key={tile.key}
-            source={{ uri: tile.uri }}
-            style={[styles.tile, { left: tile.left, top: tile.top }]}
-            onError={() => setTilesFailed(true)}
-          />
-        ))}
+      {tiles.map((tile) => (
+        <Image
+          key={tile.key}
+          source={{ uri: tile.uri }}
+          style={[styles.tile, { left: tile.left, top: tile.top }]}
+          onError={() => onTileError(tile.source)}
+        />
+      ))}
 
-      {tilesFailed && (
-        <View style={styles.fallback}>
-          <Ionicons name="map-outline" size={26} color={colors.textTertiary} />
-          <Text style={[typography.caption, { color: colors.textTertiary, marginTop: 4 }]}>
-            Map unavailable
-          </Text>
+      <View style={styles.pinWrap} pointerEvents="none">
+        <View style={{ marginBottom: 26 }}>
+          <Ionicons name="location" size={32} color={colors.danger} />
         </View>
-      )}
+      </View>
 
-      {valid && !tilesFailed && (
-        <View style={styles.pinWrap} pointerEvents="none">
-          <View style={{ marginBottom: pinOffset }}>
-            <Ionicons name="location" size={32} color={colors.danger} />
-          </View>
-        </View>
-      )}
-
-      <Text style={styles.attribution}>© OpenStreetMap contributors</Text>
+      <Text style={styles.attribution}>{source.attribution}</Text>
     </View>
   );
 
@@ -150,15 +176,6 @@ const getStyles = (c: typeof lightColors) =>
       height: TILE_SIZE,
     },
     pinWrap: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    fallback: {
       position: 'absolute',
       top: 0,
       left: 0,

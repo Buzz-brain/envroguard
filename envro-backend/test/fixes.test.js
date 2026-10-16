@@ -991,3 +991,13 @@ test('GEO-5: editing coordinates clears the stale place name and refills it', as
     process.env.GEOCODE_ENABLED = 'false';
   }
 });
+
+test('GEO-6: CSP allows the map tile hosts used by the report detail view', async () => {
+  const res = await get(null, '/health');
+  assert.equal(res.status, 200);
+
+  const csp = res.headers.get('content-security-policy');
+  assert.ok(csp, 'helmet should emit a content-security-policy header');
+  assert.match(csp, /img-src[^;]*tile\.openstreetmap\.org/);
+  assert.match(csp, /img-src[^;]*a\.basemaps\.cartocdn\.com/);
+});

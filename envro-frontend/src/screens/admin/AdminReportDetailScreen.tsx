@@ -326,15 +326,25 @@ export default function AdminReportDetailScreen({ route, navigation }: any) {
           </View>
 
           {!!report.location.placeName && (
-            <View style={styles.placeRow}>
-              <Ionicons name="navigate-circle" size={18} color={colors.primary} />
-              <Text style={styles.placeName}>{report.location.placeName}</Text>
+            <View style={styles.locRow}>
+              <View style={styles.locIconWrap}>
+                <Ionicons name="navigate" size={14} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.locLabel}>Area</Text>
+                <Text style={styles.locValueStrong}>{report.location.placeName}</Text>
+              </View>
             </View>
           )}
 
-          <View style={styles.locationBody}>
-            <Ionicons name="location" size={16} color={colors.primary} />
-            <Text style={styles.locationAddress}>{report.location.address}</Text>
+          <View style={styles.locRow}>
+            <View style={styles.locIconWrap}>
+              <Ionicons name="location" size={14} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.locLabel}>Address</Text>
+              <Text style={styles.locValue}>{report.location.address}</Text>
+            </View>
           </View>
 
           {report.location.coordinates?.length === 2 && (
@@ -343,7 +353,7 @@ export default function AdminReportDetailScreen({ route, navigation }: any) {
                 latitude={report.location.coordinates[1]}
                 longitude={report.location.coordinates[0]}
                 height={160}
-                style={{ marginTop: spacing.md }}
+                style={{ marginTop: spacing.sm }}
                 onPress={() => openInMaps(report.location.coordinates[1], report.location.coordinates[0])}
               />
               <TouchableOpacity
@@ -351,15 +361,12 @@ export default function AdminReportDetailScreen({ route, navigation }: any) {
                 onPress={() => openInMaps(report.location.coordinates[1], report.location.coordinates[0])}
                 activeOpacity={0.7}
               >
-                <Ionicons name="open-outline" size={15} color={colors.primary} />
+                <Ionicons name="map-outline" size={16} color={colors.primary} />
                 <Text style={styles.openMapText}>Open in Maps</Text>
               </TouchableOpacity>
-              <View style={styles.coordRow}>
-                <Ionicons name="compass-outline" size={13} color={colors.textTertiary} style={{ marginRight: 4 }} />
-                <Text style={styles.coordText}>
-                  {report.location.coordinates[1].toFixed(6)}°, {report.location.coordinates[0].toFixed(6)}°
-                </Text>
-              </View>
+              <Text style={styles.coordCaption}>
+                Coordinates {report.location.coordinates[1].toFixed(6)}, {report.location.coordinates[0].toFixed(6)}
+              </Text>
             </>
           )}
         </View>
@@ -789,31 +796,46 @@ const getStyles = (c: typeof lightColors) => StyleSheet.create({
   descriptionText: { ...typography.body, color: c.text, lineHeight: 26 },
 
   // ── Location ──
-  placeRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm },
-  placeName: { ...typography.h4, color: c.text, flex: 1 },
-  locationBody: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
-  locationAddress: { ...typography.body, color: c.text, flex: 1 },
+  locRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, marginBottom: spacing.sm },
+  locIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: c.primaryBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  locLabel: {
+    ...typography.caption,
+    color: c.textTertiary,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  locValue: { ...typography.body, color: c.text },
+  locValueStrong: { ...typography.h4, color: c.text },
   openMapBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
-    alignSelf: 'flex-start',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    width: '100%',
     marginTop: spacing.sm,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
     backgroundColor: c.primaryBg,
-    borderRadius: borderRadius.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: c.primaryLight,
   },
-  openMapText: { ...typography.label, color: c.primary, fontWeight: '600' },
-  coordRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  openMapText: { ...typography.button, fontSize: 15, color: c.primary },
+  coordCaption: {
+    ...typography.caption,
+    fontSize: 11,
+    color: c.textTertiary,
     marginTop: spacing.sm,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: c.borderLight,
+    textAlign: 'center',
   },
-  coordText: { fontSize: 12, color: c.textTertiary, fontFamily: 'monospace' },
 
   // ── Reporter ──
   reporterRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
