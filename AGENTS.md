@@ -26,6 +26,10 @@ Campus environmental hazard reporting system.
 - `npx tsc --noEmit` — typecheck
 
 ## Progress log
+- 2026-10-16 — **Native "Open in Maps" fixed** (commit + push).
+  - New `src/utils/openMaps.ts` replaces the duplicated per-screen helper (which was `Linking.openURL(webUrl).catch(() => {})` — i.e. failures were **silent no-ops**).
+  - **Android** now uses the `geo:lat,lon?q=lat,lon(label)` scheme so the device maps app opens the pin directly (no browser detour); **iOS/web** keep `https://www.google.com/maps/search/...` (Maps app if installed, new tab otherwise). Falls back from `geo:` → web URL → `ToastService.error('Cannot Open Maps', ...)`.
+  - Both detail screens import it and pass `report.location.address` as the pin label; local `Linking` imports removed. Verified: `tsc` clean, 4 call sites updated.
 - 2026-10-16 — **Tile source fix: CARTO now requires an API key** (commit + push).
   - Symptom: map rendered as a grid of "API KEY REQUIRED". CARTO's basemap CDN answers every tile with a **200 OK placeholder image** (~2KB) so the browser's `onError` fallback never fired and the map never fell back to OSM.
   - `MapPreview.TILE_SOURCES`: **OSM (`tile.openstreetmap.org`) primary → Esri World Street Map fallback** (`services.arcgisonline.com/.../tile/{z}/{y}/{x}` — note **y before x**). Both keyless; verified with real tiles (Ihiagwa/London/NY: OSM 6–33KB, Esri 3.8–40KB vs CARTO's constant 2049B). Attribution strings updated per source.

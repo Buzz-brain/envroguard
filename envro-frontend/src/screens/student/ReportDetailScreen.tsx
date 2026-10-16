@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   Dimensions,
   ActivityIndicator,
-  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -22,14 +21,10 @@ import { lightColors } from '../../constants/theme';
 import { useColors } from '../../contexts/ThemeContext';
 import { reportsApi } from '../../api/reports';
 import { formatFullDateExtended } from '../../utils/helpers';
+import { openInMaps } from '../../utils/openMaps';
 import type { HazardReport } from '../../types';
 
 const { width } = Dimensions.get('window');
-
-const openInMaps = (latitude: number, longitude: number) => {
-  const url = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
-  Linking.openURL(url).catch(() => {});
-};
 
 const catIcons: Record<string, string> = {
   Flooding: 'water',
@@ -230,11 +225,11 @@ export default function ReportDetailScreen({ route, navigation }: any) {
               longitude={report.location.coordinates[0]}
               height={160}
               style={{ marginTop: spacing.sm }}
-              onPress={() => openInMaps(report.location.coordinates[1], report.location.coordinates[0])}
+              onPress={() => openInMaps(report.location.coordinates[1], report.location.coordinates[0], report.location.address)}
             />
             <TouchableOpacity
               style={styles.openMapBtn}
-              onPress={() => openInMaps(report.location.coordinates[1], report.location.coordinates[0])}
+              onPress={() => openInMaps(report.location.coordinates[1], report.location.coordinates[0], report.location.address)}
               activeOpacity={0.7}
             >
               <Ionicons name="map-outline" size={16} color={colors.primary} />
