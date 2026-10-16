@@ -231,6 +231,17 @@ export function MapPreview({ latitude, longitude, height = 160, style, onPress }
     return result;
   }, [valid, width, height, center, zoom, source, sourceIndex]);
 
+  // The pin marks the reported coordinate, not the view centre: shift it by
+  // the world-pixel distance between the two so panning can never leave it
+  // sitting on the wrong spot (it moves with the tiles, stays put on release).
+  const pinOffset = useMemo(() => {
+    if (!valid) return { x: 0, y: 0 };
+    return {
+      x: lonToWorldX(longitude, zoom) - lonToWorldX(center.lng, zoom),
+      y: latToWorldY(latitude, zoom) - latToWorldY(center.lat, zoom),
+    };
+  }, [valid, latitude, longitude, center, zoom]);
+
   if (!valid || unavailable) return null;
 
   return (
@@ -251,7 +262,10 @@ export function MapPreview({ latitude, longitude, height = 160, style, onPress }
           />
         ))}
 
-        <View style={styles.pinWrap} pointerEvents="none">
+        <View
+          style={[styles.pinWrap, { transform: [{ translateX: pinOffset.x }, { translateY: pinOffset.y }] }]}
+          pointerEvents="none"
+        >
           <View style={{ marginBottom: 26 }}>
             <Ionicons name="location" size={32} color={colors.danger} />
           </View>

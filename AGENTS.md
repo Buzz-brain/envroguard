@@ -26,6 +26,10 @@ Campus environmental hazard reporting system.
 - `npx tsc --noEmit` — typecheck
 
 ## Progress log
+- 2026-10-16 — **Pin anchoring fix after drag** (commit + push).
+  - Defect: the pin was flex-centered inside the pan layer, so it always rendered at the **view centre** — correct before any pan, wrong afterwards (it "remained" in the middle while the hazard coordinate moved away).
+  - `MapPreview` now computes `pinOffset` = world-pixel distance from `center` to the report coordinate and applies it as a transform on `pinWrap`. The pin therefore moves with the tiles during a drag and does not jump on release; if the user pans far enough it clips out of the box, as on any map.
+  - Frontend `tsc` clean (no backend change).
 - 2026-10-16 — **Tile source fix #2: OSM's volunteer servers block us** (commit + push).
   - Symptom: map rendered OSM's "Access blocked … tile usage policy" tile — again an **HTTP 200 placeholder image**, so `onError` never fired. Trigger: helmet's default `Referrer-Policy: no-referrer` hid our origin, and OSM's policy tells production apps to use their own tile infrastructure anyway.
   - `MapPreview.TILE_SOURCES`: **Esri World Street Map primary → Esri World Topo Map fallback** (`services.arcgisonline.com`, keyless, verified real tiles). OSM dropped entirely (a blocked tile must never be a fallback). Attribution `© Esri, HERE, Garmin, © OpenStreetMap contributors`.
