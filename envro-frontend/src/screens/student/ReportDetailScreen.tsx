@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Dimensions,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -15,6 +16,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { ImagePreview } from '../../components/ui/ImagePreview';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { SkeletonDetail } from '../../components/ui/SkeletonDetail';
+import { MapPreview } from '../../components/ui/MapPreview';
 import { typography, spacing, borderRadius, categoryColors as cc } from '../../constants';
 import { lightColors } from '../../constants/theme';
 import { useColors } from '../../contexts/ThemeContext';
@@ -23,6 +25,11 @@ import { formatFullDateExtended } from '../../utils/helpers';
 import type { HazardReport } from '../../types';
 
 const { width } = Dimensions.get('window');
+
+const openInMaps = (latitude: number, longitude: number) => {
+  const url = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+  Linking.openURL(url).catch(() => {});
+};
 
 const catIcons: Record<string, string> = {
   Flooding: 'water',
@@ -193,17 +200,43 @@ export default function ReportDetailScreen({ route, navigation }: any) {
           <Ionicons name="location-outline" size={18} color={colors.primary} />
           <Text style={styles.sectionLabel}>Location</Text>
         </View>
+
+        {!!report.location.placeName && (
+          <View style={styles.placeRow}>
+            <Ionicons name="navigate-circle" size={18} color={colors.primary} />
+            <Text style={styles.placeName}>{report.location.placeName}</Text>
+          </View>
+        )}
+
         <View style={styles.locationBody}>
           <Ionicons name="location" size={16} color={colors.primary} />
           <Text style={styles.locationAddress}>{report.location.address}</Text>
         </View>
+
         {report.location.coordinates?.length === 2 && (
-          <View style={styles.coordRow}>
-            <Ionicons name="compass-outline" size={13} color={colors.textTertiary} style={{ marginRight: 4 }} />
-            <Text style={styles.coordText}>
-              Lat: {report.location.coordinates[1].toFixed(6)}°, Long: {report.location.coordinates[0].toFixed(6)}°
-            </Text>
-          </View>
+          <>
+            <MapPreview
+              latitude={report.location.coordinates[1]}
+              longitude={report.location.coordinates[0]}
+              height={160}
+              style={{ marginTop: spacing.md }}
+              onPress={() => openInMaps(report.location.coordinates[1], report.location.coordinates[0])}
+            />
+            <TouchableOpacity
+              style={styles.openMapBtn}
+              onPress={() => openInMaps(report.location.coordinates[1], report.location.coordinates[0])}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="open-outline" size={15} color={colors.primary} />
+              <Text style={styles.openMapText}>Open in Maps</Text>
+            </TouchableOpacity>
+            <View style={styles.coordRow}>
+              <Ionicons name="compass-outline" size={13} color={colors.textTertiary} style={{ marginRight: 4 }} />
+              <Text style={styles.coordText}>
+                {report.location.coordinates[1].toFixed(6)}°, {report.location.coordinates[0].toFixed(6)}°
+              </Text>
+            </View>
+          </>
         )}
       </View>
 
@@ -500,6 +533,17 @@ const getStyles = (c: typeof lightColors) => StyleSheet.create({
   },
 
   // ── Location ──
+  placeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  placeName: {
+    ...typography.h4,
+    color: c.text,
+    flex: 1,
+  },
   locationBody: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -509,6 +553,22 @@ const getStyles = (c: typeof lightColors) => StyleSheet.create({
     ...typography.body,
     color: c.text,
     flex: 1,
+  },
+  openMapBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    alignSelf: 'flex-start',
+    marginTop: spacing.sm,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: c.primaryBg,
+    borderRadius: borderRadius.sm,
+  },
+  openMapText: {
+    ...typography.label,
+    color: c.primary,
+    fontWeight: '600',
   },
   coordRow: {
     flexDirection: 'row',

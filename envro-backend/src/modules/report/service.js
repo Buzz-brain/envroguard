@@ -8,6 +8,41 @@ import { ApiError } from '../../utils/apiError.js';
 import { createNotificationService } from '../notification/service.js';
 import { createAuditLog } from '../../services/audit.service.js';
 import { addReportSubmittedEvent, addReportEditedEvent, addAssignedEvent, buildStatusChangedTimelineEntry } from '../../services/timeline.service.js';
+import { reverseGeocode } from '../../services/geocode.service.js';
+
+// Geocoding is best-effort: it must never reject or delay a report write.
+const geocodePlaceName = (latitude, longitude) =>
+  reverseGeocode(latitude, longitude).catch(() => null);
+
+const setPlaceName = async (reportId, placeName) => {
+  if (!placeName) return null;
+  await HazardReport.updateOne(
+    { _id: reportId },
+    { $set: { 'location.placeName': placeName } }
+  );
+  return placeName;
+};
+
+// Fill in a missing place name for reports created before geocoding existed.
+// Capped so a slow provider can never stall the read — if the cap is hit the
+// lookup keeps running in the background and is persisted for the next read.
+const GEOCODE_READ_BUDGET_MS = 1200;
+const fillMissingPlaceName = async (report) => {
+  if (!report || report.location?.placeName) return;
+  const [lon, lat] = report.location?.coordinates || [];
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+  const fill = geocodePlaceName(lat, lon).then((placeName) =>
+    setPlaceName(report._id, placeName).then((name) => {
+      if (name) report.location.placeName = name;
+    })
+  );
+
+  await Promise.race([
+    fill,
+    new Promise((resolve) => setTimeout(resolve, GEOCODE_READ_BUDGET_MS).unref?.()),
+  ]);
+};
 
 // Normal forward workflow. Skipping stages is never allowed.
 export const VALID_STATUS_TRANSITIONS = {
@@ -99,6 +134,12 @@ export const createReportService = async (data, studentAccountId) => {
     status: REPORT_STATUS.PENDING,
     priority: data.priority || 'medium',
   });
+
+  // Resolve a human-readable place name in the background so geocoding never
+  // slows down (or breaks) submitting a report.
+  geocodePlaceName(data.latitude, data.longitude)
+    .then((placeName) => setPlaceName(report._id, placeName))
+    .catch(() => {});
 
   const populatedReport = await HazardReport.findById(report._id)
     .populate('reportedBy', 'registrationNumber')
@@ -196,6 +237,8 @@ export const updateReportService = async (reportId, data, studentAccountId) => {
       parseFloat(data.longitude),
       parseFloat(data.latitude),
     ];
+    // Coordinates moved, so any cached place name is stale.
+    update['location.placeName'] = null;
     changedFields.push('location');
   }
 
@@ -208,8 +251,17 @@ export const updateReportService = async (reportId, data, studentAccountId) => {
     throw new ApiError(400, 'No valid fields to update');
   }
 
-  Object.assign(report, update);
+  // Use set() so dotted paths such as "location.coordinates" are applied to
+  // the nested subdocument; Object.assign would create inert literal keys.
+  report.set(update);
   await report.save();
+
+  if (hasValidCoords) {
+    const [lon, lat] = report.location.coordinates;
+    geocodePlaceName(lat, lon)
+      .then((placeName) => setPlaceName(report._id, placeName))
+      .catch(() => {});
+  }
 
   const studentAccount = await StudentAccount.findById(studentAccountId);
   const student = studentAccount
@@ -270,6 +322,8 @@ export const getReportByIdService = async (reportId, userRole, userFaculty, user
   if (!report) {
     throw new ApiError(404, 'Report not found');
   }
+
+  await fillMissingPlaceName(report);
 
   return report;
 };

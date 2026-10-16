@@ -43,6 +43,7 @@ export interface Location {
   type: 'Point';
   coordinates: [number, number];
   address: string;
+  placeName?: string;
 }
 
 export interface ReportImage {

@@ -26,6 +26,12 @@ Campus environmental hazard reporting system.
 - `npx tsc --noEmit` — typecheck
 
 ## Progress log
+- 2026-10-16 — **Understandable report locations: place name + map + open-in-maps** (commit + push).
+  - New `envro-backend/src/services/geocode.service.js`: OSM Nominatim reverse geocoding (no API key), env-gated by `GEOCODE_ENABLED` (default true), `NOMINATIM_URL` override, in-process 1 req/1.1s throttle, 3s timeout, identifying `User-Agent`, returns short label or `null`, never throws.
+  - `report/model.js`: added optional `location.placeName` (max 200). `report/service.js`: fire-and-forget geocode on create; on coordinate change clears + refills; `getReportByIdService` lazily backfills legacy reports, capped at a 1.2s read budget (background completion persists for next read).
+  - Frontend: `Location.placeName?` type; new `components/ui/MapPreview.tsx` (OSM raster tiles + center pin + "© OpenStreetMap contributors", graceful fallback); student `ReportDetailScreen` + admin `AdminReportDetailScreen` show place name, MapPreview, "Open in Maps" (`google.com/maps/search`), raw coords demoted to a caption.
+  - **Defect found+fixed:** student report edits silently ignored location/address — `Object.assign(report, update)` with dotted keys (`'location.coordinates'`, `'location.address'`) never persisted. Now `report.set(update)`.
+  - Tests: `test/fixes.test.js` **43/43 passing** (added GEO-1..GEO-5: create blocked-free when disabled, backfill, lazy-fill legacy, failure never blocks, coord edit refill; suite now sets `GEOCODE_ENABLED=false` by default with a local Nominatim stub). Frontend `tsc` clean.
 - 2026-09-18 — **FINAL PRODUCTION VERIFICATION + fixes for the 2 found defects** (not yet committed).
   - Ran 49-check read/write probe vs live production API; **47 PASS**, 2 genuine defects found.
   - Verified live: deploy guard (status transitions), assignment (env-admin-only, 404 on FacultyAdmin/nonexistent, 400 on inactive, notification recipient/recipientModel), report by-id scope, department scope, dept/faculty audit attribution, audit endpoint matrix, malformed-filter hardening. Report: `doc/PRODUCTION_VERIFICATION_REPORT.md` (doc/ is gitignored).

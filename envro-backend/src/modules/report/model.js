@@ -30,6 +30,9 @@ const hazardReportSchema = new mongoose.Schema(
       type: { type: String, default: 'Point' },
       coordinates: { type: [Number] },
       address: { type: String, required: true, trim: true },
+      // Reverse-geocoded human-readable area for the coordinates. Optional:
+      // derived server-side and may be missing if geocoding was unavailable.
+      placeName: { type: String, trim: true, maxlength: 200 },
     },
     reportedBy: {
       type: mongoose.Schema.Types.ObjectId,

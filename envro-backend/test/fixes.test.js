@@ -2,9 +2,13 @@ process.env.NODE_ENV = 'test';
 process.env.MONGODB_URI = 'mongodb://127.0.0.1:27017/envro-guard-test';
 process.env.RATE_LIMIT_WINDOW_MS = '600000';
 process.env.RATE_LIMIT_MAX_REQUESTS = '100000';
+// Geocoding is off by default so the rest of the suite never touches the
+// network; the GEO-* tests below enable it against a local stub server.
+process.env.GEOCODE_ENABLED = 'false';
 
 import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import http from 'node:http';
 import mongoose from 'mongoose';
 
 import { app } from '../src/app.js';
@@ -26,6 +30,41 @@ import { VALID_STATUS_TRANSITIONS } from '../src/modules/report/service.js';
 const BASE = '/api/v1';
 let server;
 let baseUrl;
+
+// Local stand-in for the OpenStreetMap Nominatim API. Tests can swap out
+// `nominatimResponder` to simulate success or failure.
+let nominatimServer;
+let nominatimResponder = (req, res) => {
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(
+    JSON.stringify({
+      display_name: 'Ihiagwa, Owerri West, Imo, Nigeria',
+      address: {
+        village: 'Ihiagwa',
+        county: 'Owerri West',
+        state: 'Imo',
+        country: 'Nigeria',
+      },
+    })
+  );
+};
+
+const postReport = (token, body) =>
+  get(token, `${BASE}/reports`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+const sampleReportBody = (overrides = {}) => ({
+  title: 'Overflowing bin near gate',
+  description: 'Refuse spilling onto the path.',
+  category: 'Waste Dumping',
+  address: 'Main gate, IFT block',
+  latitude: 5.380758,
+  longitude: 6.989511,
+  ...overrides,
+});
 
 const f = {
   facultyA: null,
@@ -124,10 +163,20 @@ before(async () => {
   await seed();
   server = app.listen(0);
   baseUrl = `http://127.0.0.1:${server.address().port}`;
+
+  nominatimServer = http.createServer((req, res) => nominatimResponder(req, res));
+  await new Promise((resolve) => nominatimServer.listen(0, '127.0.0.1', resolve));
+  process.env.NOMINATIM_URL = `http://127.0.0.1:${nominatimServer.address().port}`;
 });
 
 after(async () => {
   await new Promise((resolve) => server.close(resolve));
+  if (nominatimServer) {
+    await new Promise((resolve) => nominatimServer.close(resolve));
+  }
+  // Let fire-and-forget work (geocoding, timeline, audit, push) settle so it
+  // does not touch a closed MongoDB connection.
+  await new Promise((resolve) => setTimeout(resolve, 1500));
   await mongoose.disconnect();
 });
 
@@ -829,4 +878,116 @@ test('Regression SE-6: students and environmental admins cannot edit students', 
 
   const envRes = await patchStudent(t.env1, f.student._id, { fullName: 'Hacked' });
   assert.equal(envRes.status, 403);
+});
+
+// ── Reverse geocoding (location.placeName) ────────────────────────────────
+
+test('GEO-1: report creation succeeds and stores no place name when geocoding is disabled', async () => {
+  const t = tokens();
+  process.env.GEOCODE_ENABLED = 'false';
+  const res = await postReport(t.student, sampleReportBody());
+  const body = await res.json();
+  assert.equal(res.status, 201, JSON.stringify(body));
+
+  const created = await HazardReport.findById(body.data._id);
+  assert.equal(created.location.placeName, undefined, 'no placeName without geocoding');
+});
+
+test('GEO-2: reverse geocoding populates and persists location.placeName', async () => {
+  const t = tokens();
+  process.env.GEOCODE_ENABLED = 'true';
+  try {
+    const res = await postReport(t.student, sampleReportBody());
+    const body = await res.json();
+    assert.equal(res.status, 201, JSON.stringify(body));
+
+    const filled = await waitFor(async () => {
+      const doc = await HazardReport.findById(body.data._id);
+      return doc.location.placeName ? doc : null;
+    }, 6000);
+    assert.ok(filled, 'placeName should be backfilled asynchronously');
+    assert.match(filled.location.placeName, /Ihiagwa|Owerri|Nigeria/);
+  } finally {
+    process.env.GEOCODE_ENABLED = 'false';
+  }
+});
+
+test('GEO-3: reading a legacy report lazily backfills and returns placeName', async () => {
+  const t = tokens();
+  process.env.GEOCODE_ENABLED = 'true';
+  try {
+    assert.ok(!f.reportA.location.placeName, 'seeded report starts without a placeName');
+
+    const res = await get(t.student, `${BASE}/reports/${f.reportA._id}`);
+    const resBody = await res.json();
+    assert.equal(res.status, 200, JSON.stringify(resBody));
+
+    const persisted = await waitFor(async () => {
+      const doc = await HazardReport.findById(f.reportA._id);
+      return doc.location.placeName ? doc : null;
+    }, 6000);
+    assert.ok(persisted, 'placeName should be persisted after the read');
+
+    // A subsequent read is served from the stored value.
+    const again = await get(t.student, `${BASE}/reports/${f.reportA._id}`);
+    const againBody = await again.json();
+    assert.equal(againBody.data.location.placeName, persisted.location.placeName);
+  } finally {
+    process.env.GEOCODE_ENABLED = 'false';
+  }
+});
+
+test('GEO-4: a failing geocoder never blocks report creation', async () => {
+  const t = tokens();
+  const previous = nominatimResponder;
+  nominatimResponder = (req, res) => {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'boom' }));
+  };
+  process.env.GEOCODE_ENABLED = 'true';
+  try {
+    const res = await postReport(t.student, sampleReportBody());
+    const body = await res.json();
+    assert.equal(res.status, 201, JSON.stringify(body));
+
+    await new Promise((resolve) => setTimeout(resolve, 1300));
+    const doc = await HazardReport.findById(body.data._id);
+    assert.equal(doc.location.placeName, undefined, 'no placeName on failure');
+  } finally {
+    nominatimResponder = previous;
+    process.env.GEOCODE_ENABLED = 'false';
+  }
+});
+
+test('GEO-5: editing coordinates clears the stale place name and refills it', async () => {
+  const t = tokens();
+  process.env.GEOCODE_ENABLED = 'true';
+  try {
+    const res = await postReport(t.student, sampleReportBody());
+    const body = await res.json();
+    assert.equal(res.status, 201, JSON.stringify(body));
+
+    const first = await waitFor(async () => {
+      const doc = await HazardReport.findById(body.data._id);
+      return doc.location.placeName ? doc : null;
+    }, 6000);
+    assert.ok(first, 'initial placeName should be filled');
+
+    const edit = await get(t.student, `${BASE}/reports/${body.data._id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ latitude: 6.5, longitude: 3.4 }),
+    });
+    const editBody = await edit.json();
+    assert.equal(edit.status, 200, JSON.stringify(editBody));
+
+    const refilled = await waitFor(async () => {
+      const doc = await HazardReport.findById(body.data._id);
+      return doc.location.placeName ? doc : null;
+    }, 6000);
+    assert.ok(refilled, 'placeName should be refilled after moving coordinates');
+    assert.deepEqual(Array.from(refilled.location.coordinates), [3.4, 6.5]);
+  } finally {
+    process.env.GEOCODE_ENABLED = 'false';
+  }
 });
