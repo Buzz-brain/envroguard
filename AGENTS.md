@@ -26,6 +26,10 @@ Campus environmental hazard reporting system.
 - `npx tsc --noEmit` — typecheck
 
 ## Progress log
+- 2026-10-16 — **Interactive map preview** (drag to pan + zoom controls; no new deps, JS-only → no EAS rebuild).
+  - `components/ui/MapPreview.tsx`: `center`/`zoom` state, inverse Web-Mercator math (`worldXToLon`/`worldYToLat`), padded tile ring (one 256px tile beyond the viewport) so small pans refetch nothing, `PanResponder` drag-pan (claims responder on touch start; a <5px release is a tap → `onPress`), zoom `+`/`−` chips (clamped 3–19, dimmed at bounds), and `touchAction:'none'` on web so a touch-drag pans instead of scrolling the page. **Same public API → both detail screens unchanged.**
+  - Trade-off: a touch that starts on the map pans it rather than scrolling the page (standard map-widget behaviour).
+  - Frontend `tsc` clean; backend `npm test` 44/44 (no backend change).
 - 2026-10-16 — **Understandable report locations: place name + map + open-in-maps** (commit + push).
   - New `envro-backend/src/services/geocode.service.js`: OSM Nominatim reverse geocoding (no API key), env-gated by `GEOCODE_ENABLED` (default true), `NOMINATIM_URL` override, in-process 1 req/1.1s throttle, 3s timeout, identifying `User-Agent`, returns short label or `null`, never throws.
   - `report/model.js`: added optional `location.placeName` (max 200). `report/service.js`: fire-and-forget geocode on create; on coordinate change clears + refills; `getReportByIdService` lazily backfills legacy reports, capped at a 1.2s read budget (background completion persists for next read).

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -8,14 +8,25 @@ import {
   StyleProp,
   ViewStyle,
   Pressable,
+  Animated,
+  PanResponder,
+  Platform,
+  GestureResponderEvent,
+  PanResponderGestureState,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { borderRadius, typography } from '../../constants';
+import { borderRadius } from '../../constants';
 import { lightColors } from '../../constants/theme';
 import { useColors } from '../../contexts/ThemeContext';
 
 const TILE_SIZE = 256;
-const ZOOM = 16;
+const DEFAULT_ZOOM = 16;
+const MIN_ZOOM = 3;
+const MAX_ZOOM = 19;
+// Extra tile ring drawn around the viewport so small pans do not refetch.
+const PAD = TILE_SIZE;
+// Pixels of movement before a touch counts as a drag instead of a tap.
+const DRAG_THRESHOLD = 5;
 
 // Two keyless raster sources. CARTO (CDN) is tried first; OSM is the fallback.
 const TILE_SOURCES = [
@@ -30,10 +41,12 @@ const TILE_SOURCES = [
   },
 ];
 
+const MAX_LAT = 85.05112878;
+
 const lonToWorldX = (lon: number, z: number) => ((lon + 180) / 360) * 2 ** z * TILE_SIZE;
 
 const latToWorldY = (lat: number, z: number) => {
-  const clamped = Math.max(Math.min(lat, 85.05112878), -85.05112878);
+  const clamped = Math.max(Math.min(lat, MAX_LAT), -MAX_LAT);
   const latRad = (clamped * Math.PI) / 180;
   return (
     ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) *
@@ -41,6 +54,27 @@ const latToWorldY = (lat: number, z: number) => {
     TILE_SIZE
   );
 };
+
+const worldXToLon = (x: number, z: number) => (x / (2 ** z * TILE_SIZE)) * 360 - 180;
+
+const worldYToLat = (y: number, z: number) => {
+  const n = Math.PI - (2 * Math.PI * y) / (2 ** z * TILE_SIZE);
+  return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+};
+
+const clampLat = (lat: number) => Math.max(-MAX_LAT, Math.min(MAX_LAT, lat));
+
+const wrapLon = (lon: number) => {
+  let value = lon;
+  while (value > 180) value -= 360;
+  while (value < -180) value += 360;
+  return value;
+};
+
+// react-native-web forwards unknown style keys to CSS; without this the browser
+// scrolls the page instead of letting the map pan on touch devices.
+const WEB_PAN_STYLE =
+  Platform.OS === 'web' ? ({ touchAction: 'none' } as unknown as StyleProp<ViewStyle>) : null;
 
 interface MapPreviewProps {
   latitude: number;
@@ -51,10 +85,11 @@ interface MapPreviewProps {
 }
 
 /**
- * Lightweight "map with a pin" built from keyless raster tiles. Renders the
- * same on web and native. If neither tile source can load it renders nothing
- * so callers can fall back to a plain "open in maps" action instead of a
- * broken-looking placeholder.
+ * Lightweight interactive "map with a pin" built from keyless raster tiles.
+ * Renders the same on web and native: drag to pan, use the +/- controls to
+ * zoom, tap to run onPress (callers open the native maps app). If neither
+ * tile source can load it renders nothing so callers can fall back to a plain
+ * "open in maps" action instead of a broken-looking placeholder.
  */
 export function MapPreview({ latitude, longitude, height = 160, style, onPress }: MapPreviewProps) {
   const colors = useColors();
@@ -62,7 +97,34 @@ export function MapPreview({ latitude, longitude, height = 160, style, onPress }
   const [width, setWidth] = useState(0);
   const [sourceIndex, setSourceIndex] = useState(0);
   const [unavailable, setUnavailable] = useState(false);
+  const [center, setCenter] = useState({ lat: latitude, lng: longitude });
+  const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const sourceRef = useRef(0);
+  const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const lastGestRef = useRef({ dx: 0, dy: 0 });
+
+  const valid =
+    Number.isFinite(latitude) &&
+    Number.isFinite(longitude) &&
+    Math.abs(latitude) <= 90 &&
+    Math.abs(longitude) <= 180;
+
+  const centerRef = useRef(center);
+  const zoomRef = useRef(zoom);
+  const onPressRef = useRef(onPress);
+
+  useEffect(() => {
+    centerRef.current = center;
+    zoomRef.current = zoom;
+    onPressRef.current = onPress;
+  });
+
+  // Follow a different report's coordinates.
+  useEffect(() => {
+    if (!valid) return;
+    setCenter({ lat: latitude, lng: longitude });
+    setZoom(DEFAULT_ZOOM);
+  }, [latitude, longitude, valid]);
 
   const onLayout = useCallback((e: LayoutChangeEvent) => {
     setWidth(e.nativeEvent.layout.width);
@@ -87,27 +149,62 @@ export function MapPreview({ latitude, longitude, height = 160, style, onPress }
     [advanceSource]
   );
 
-  const valid =
-    Number.isFinite(latitude) &&
-    Number.isFinite(longitude) &&
-    Math.abs(latitude) <= 90 &&
-    Math.abs(longitude) <= 180;
+  const zoomIn = useCallback(() => setZoom((z) => Math.min(MAX_ZOOM, z + 1)), []);
+  const zoomOut = useCallback(() => setZoom((z) => Math.max(MIN_ZOOM, z - 1)), []);
+
+  const endPan = useCallback(() => {
+    const { dx, dy } = lastGestRef.current;
+    const dragged = Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD;
+    lastGestRef.current = { dx: 0, dy: 0 };
+    pan.setValue({ x: 0, y: 0 });
+
+    if (!dragged) {
+      onPressRef.current?.();
+      return;
+    }
+
+    // Dragging moves the map under a fixed pin, so the new centre shifts by
+    // the opposite of the pixel delta at the current zoom.
+    const z = zoomRef.current;
+    const c = centerRef.current;
+    const worldX = lonToWorldX(c.lng, z) - dx;
+    const worldY = latToWorldY(c.lat, z) - dy;
+    setCenter({ lat: clampLat(worldYToLat(worldY, z)), lng: wrapLon(worldXToLon(worldX, z)) });
+  }, [pan]);
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderGrant: () => {
+          lastGestRef.current = { dx: 0, dy: 0 };
+        },
+        onPanResponderMove: (_evt: GestureResponderEvent, gestureState: PanResponderGestureState) => {
+          lastGestRef.current = { dx: gestureState.dx, dy: gestureState.dy };
+          pan.setValue({ x: gestureState.dx, y: gestureState.dy });
+        },
+        onPanResponderRelease: endPan,
+        onPanResponderTerminate: endPan,
+      }),
+    [endPan, pan]
+  );
 
   const source = TILE_SOURCES[sourceIndex];
 
   const tiles = useMemo(() => {
     if (!valid || width <= 0) return [];
 
-    const worldX = lonToWorldX(longitude, ZOOM);
-    const worldY = latToWorldY(latitude, ZOOM);
+    const worldX = lonToWorldX(center.lng, zoom);
+    const worldY = latToWorldY(center.lat, zoom);
     const left = worldX - width / 2;
     const top = worldY - height / 2;
 
-    const tileCount = 2 ** ZOOM;
-    const minTileX = Math.floor(left / TILE_SIZE);
-    const maxTileX = Math.floor((left + width) / TILE_SIZE);
-    const minTileY = Math.floor(top / TILE_SIZE);
-    const maxTileY = Math.floor((top + height) / TILE_SIZE);
+    const tileCount = 2 ** zoom;
+    const minTileX = Math.floor((left - PAD) / TILE_SIZE);
+    const maxTileX = Math.floor((left + width + PAD) / TILE_SIZE);
+    const minTileY = Math.floor((top - PAD) / TILE_SIZE);
+    const maxTileY = Math.floor((top + height + PAD) / TILE_SIZE);
 
     const result: { key: string; uri: string; left: number; top: number; source: number }[] = [];
     for (let ty = minTileY; ty <= maxTileY; ty += 1) {
@@ -115,8 +212,8 @@ export function MapPreview({ latitude, longitude, height = 160, style, onPress }
       for (let tx = minTileX; tx <= maxTileX; tx += 1) {
         const wrappedX = ((tx % tileCount) + tileCount) % tileCount;
         result.push({
-          key: `${sourceIndex}/${ZOOM}/${wrappedX}/${ty}`,
-          uri: source.url(ZOOM, wrappedX, ty),
+          key: `${sourceIndex}/${zoom}/${wrappedX}/${ty}`,
+          uri: source.url(zoom, wrappedX, ty),
           left: tx * TILE_SIZE - left,
           top: ty * TILE_SIZE - top,
           source: sourceIndex,
@@ -124,40 +221,72 @@ export function MapPreview({ latitude, longitude, height = 160, style, onPress }
       }
     }
     return result;
-  }, [valid, width, height, latitude, longitude, source, sourceIndex]);
+  }, [valid, width, height, center, zoom, source, sourceIndex]);
 
   if (!valid || unavailable) return null;
 
-  const content = (
+  return (
     <View style={[styles.container, { height }, style]} onLayout={onLayout}>
-      {tiles.map((tile) => (
-        <Image
-          key={tile.key}
-          source={{ uri: tile.uri }}
-          style={[styles.tile, { left: tile.left, top: tile.top }]}
-          onError={() => onTileError(tile.source)}
-        />
-      ))}
+      <Animated.View
+        style={[styles.panLayer, WEB_PAN_STYLE, { transform: pan.getTranslateTransform() }]}
+        accessibilityRole={onPress ? 'button' : 'image'}
+        accessibilityLabel="Map preview. Drag to explore the area, tap to open in maps."
+        onAccessibilityTap={() => onPressRef.current?.()}
+        {...panResponder.panHandlers}
+      >
+        {tiles.map((tile) => (
+          <Image
+            key={tile.key}
+            source={{ uri: tile.uri }}
+            style={[styles.tile, { left: tile.left, top: tile.top }]}
+            onError={() => onTileError(tile.source)}
+          />
+        ))}
 
-      <View style={styles.pinWrap} pointerEvents="none">
-        <View style={{ marginBottom: 26 }}>
-          <Ionicons name="location" size={32} color={colors.danger} />
+        <View style={styles.pinWrap} pointerEvents="none">
+          <View style={{ marginBottom: 26 }}>
+            <Ionicons name="location" size={32} color={colors.danger} />
+          </View>
         </View>
+      </Animated.View>
+
+      <View style={styles.zoomControls}>
+        <Pressable
+          onPress={zoomIn}
+          disabled={zoom >= MAX_ZOOM}
+          accessibilityRole="button"
+          accessibilityLabel="Zoom in"
+          hitSlop={4}
+          style={({ pressed }) => [
+            styles.zoomBtn,
+            pressed && styles.zoomBtnPressed,
+            zoom >= MAX_ZOOM && styles.zoomBtnDisabled,
+          ]}
+        >
+          <Ionicons name="add" size={18} color={colors.textSecondary} />
+        </Pressable>
+        <View style={styles.zoomDivider} />
+        <Pressable
+          onPress={zoomOut}
+          disabled={zoom <= MIN_ZOOM}
+          accessibilityRole="button"
+          accessibilityLabel="Zoom out"
+          hitSlop={4}
+          style={({ pressed }) => [
+            styles.zoomBtn,
+            pressed && styles.zoomBtnPressed,
+            zoom <= MIN_ZOOM && styles.zoomBtnDisabled,
+          ]}
+        >
+          <Ionicons name="remove" size={18} color={colors.textSecondary} />
+        </Pressable>
       </View>
 
-      <Text style={styles.attribution}>{source.attribution}</Text>
+      <Text style={styles.attribution} pointerEvents="none">
+        {source.attribution}
+      </Text>
     </View>
   );
-
-  if (onPress) {
-    return (
-      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel="Open location in maps">
-        {content}
-      </Pressable>
-    );
-  }
-
-  return content;
 }
 
 const getStyles = (c: typeof lightColors) =>
@@ -169,6 +298,13 @@ const getStyles = (c: typeof lightColors) =>
       backgroundColor: c.surfaceAlt,
       borderWidth: 1,
       borderColor: c.border,
+    },
+    panLayer: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
     },
     tile: {
       position: 'absolute',
@@ -183,6 +319,32 @@ const getStyles = (c: typeof lightColors) =>
       bottom: 0,
       alignItems: 'center',
       justifyContent: 'center',
+    },
+    zoomControls: {
+      position: 'absolute',
+      top: 6,
+      right: 6,
+      borderRadius: borderRadius.sm,
+      backgroundColor: c.surface,
+      borderWidth: 1,
+      borderColor: c.border,
+      overflow: 'hidden',
+    },
+    zoomBtn: {
+      width: 28,
+      height: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    zoomBtnPressed: {
+      backgroundColor: c.surfaceAlt,
+    },
+    zoomBtnDisabled: {
+      opacity: 0.4,
+    },
+    zoomDivider: {
+      height: 1,
+      backgroundColor: c.border,
     },
     attribution: {
       position: 'absolute',
